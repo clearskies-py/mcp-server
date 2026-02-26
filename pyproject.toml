@@ -1,0 +1,86 @@
+[project]
+name = "clear-skies-mcp-server"
+description = "MCP server for the clearskies Python framework - provides code generation, documentation, and scaffolding tools"
+version = "0.0.0"
+license = {text = "MIT"}
+readme = "README.md"
+authors = [{name = "Tom Nijboer", email = "tom.nijboer@cimpress.com"}]
+requires-python = ">=3.11,<4.0"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers"
+]
+
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "clear-skies>=2.0.0"
+]
+
+[project.urls]
+Docs = "https://clearskies.info/modules/clear-skies-mcp-server"
+Repository = "https://github.com/clearskies-py/mcp-server"
+Issues = "https://github.com/clearskies-py/mcp-server/issues"
+Changelog = "https://github.com/clearskies-py/mcp-server/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+# Individual extension modules
+aws = ["clear-skies-aws>=2.0.0"]
+gitlab = ["clear-skies-gitlab>=2.0.0"]
+cortex = ["clear-skies-cortex>=2.0.0"]
+snyk = ["clear-skies-snyk>=2.0.0"]
+akeyless = ["clear-skies-akeyless-custom-producer>=2.0.0"]
+
+# Install all extension modules (excluding graphql which is not on PyPI)
+all = [
+    "clear-skies-aws>=2.0.0",
+    "clear-skies-gitlab>=2.0.0",
+    "clear-skies-cortex>=2.0.0",
+    "clear-skies-snyk>=2.0.0",
+    "clear-skies-akeyless-custom-producer>=2.0.0",
+]
+
+[project.scripts]
+clear-skies-mcp-server = "clearskies_mcp_server.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/clearskies_mcp_server"]
+
+[tool.hatch.build]
+exclude = [
+    "src/clearskies_mcp_server/*_test.py",
+    "src/clearskies_mcp_server/**/*_test.py",
+    "src/clearskies_mcp_server/integration_tests/*",
+    "docs/**",
+    "tests/**"
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+    "integration",
+]
+pythonpath = [
+  "src"
+]
+
+# This is the dedicated section for uv"s configuration
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.10",
+    "pytest-asyncio>=0.21.0",
+]
+docs = [
+    "clear-skies-doc-builder>=2.0.12",
+]
