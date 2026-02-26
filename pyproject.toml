@@ -1,7 +1,7 @@
 [project]
 name = "clear-skies-mcp-server"
 description = "MCP server for the clearskies Python framework - provides code generation, documentation, and scaffolding tools"
-version = "1.0.0"
+version = "1.0.1"
 license = {text = "MIT"}
 readme = "README.md"
 authors = [{name = "Tom Nijboer", email = "tom.nijboer@cimpress.com"}]
