@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "clearskies-local": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        ".",
+        "run",
+        "clear-skies-mcp-server"
+      ],
+      "description": "Local clearskies MCP server for development"
+    }
+  }
+}

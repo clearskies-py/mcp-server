@@ -284,3 +284,34 @@ def docs_performance() -> str:
 def docs_patterns() -> str:
     """Return common patterns cookbook for clearskies."""
     return explain_concept("patterns")
+
+
+# Base class concepts
+def docs_injectable_properties() -> str:
+    """Documentation about the InjectableProperties mixin."""
+    return explain_concept("injectable_properties")
+
+
+def docs_configurable() -> str:
+    """Documentation about the Configurable mixin."""
+    return explain_concept("configurable")
+
+
+def docs_loggable() -> str:
+    """Documentation about the Loggable mixin."""
+    return explain_concept("loggable")
+
+
+def docs_injectable() -> str:
+    """Documentation about the Injectable abstract base class."""
+    return explain_concept("injectable")
+
+
+def docs_configs_module() -> str:
+    """Documentation about the configs module."""
+    return explain_concept("configs_module")
+
+
+def docs_component_inheritance() -> str:
+    """Documentation about component inheritance hierarchy."""
+    return explain_concept("component_inheritance")

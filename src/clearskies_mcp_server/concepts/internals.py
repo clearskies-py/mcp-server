@@ -1060,4 +1060,863 @@ INTERNALS_CONCEPTS = {
         6. **Use authorization_data**: For user context
         7. **Don't trust input**: Always validate
     """),
+    "routing": textwrap.dedent("""\
+        # Routing in clearskies
+
+        clearskies provides flexible routing capabilities to map URLs to endpoints
+        and extract path parameters.
+
+        ## Basic Routing
+
+        ### URL Configuration
+
+        ```python
+        # Single endpoint with URL
+        endpoint = clearskies.endpoints.RestfulApi(
+            url="users",
+            model_class=User,
+        )
+
+        # Accessible at: /users
+        ```
+
+        ### URL Prefixes with Contexts
+
+        ```python
+        wsgi = clearskies.contexts.WsgiRef(
+            clearskies.endpoints.RestfulApi(
+                url="api/v1/users",
+                model_class=User,
+            )
+        )
+
+        # Accessible at: /api/v1/users
+        ```
+
+        ## Path Parameters
+
+        ### Dynamic URL Segments
+
+        RestfulApi endpoints automatically provide ID-based routing:
+
+        ```python
+        endpoint = clearskies.endpoints.RestfulApi(
+            url="users",
+            model_class=User,
+        )
+
+        # Automatically creates routes:
+        # GET /users          - List users
+        # GET /users/{id}     - Get user by ID
+        # POST /users         - Create user
+        # PUT /users/{id}     - Update user
+        # DELETE /users/{id}  - Delete user
+        ```
+
+        ### Custom Path Parameters
+
+        For Callable endpoints, use placeholders:
+
+        ```python
+        def my_endpoint(input_output, routing_data):
+            user_id = routing_data.get("user_id")
+            order_id = routing_data.get("order_id")
+            return input_output.success({
+                "user_id": user_id,
+                "order_id": order_id,
+            })
+
+        endpoint = clearskies.endpoints.Callable(
+            url="users/{user_id}/orders/{order_id}",
+            callable=my_endpoint,
+        )
+
+        # Matches: /users/123/orders/456
+        # routing_data = {"user_id": "123", "order_id": "456"}
+        ```
+
+        ## Routing Data
+
+        The `routing_data` parameter contains extracted path parameters:
+
+        ```python
+        def my_endpoint(input_output, routing_data):
+            # Path: /orders/abc-123
+            order_id = routing_data.get("id")  # "abc-123"
+
+            # Path: /users/123/posts/456
+            user_id = routing_data.get("user_id")    # "123"
+            post_id = routing_data.get("post_id")    # "456"
+        ```
+
+        ## Nested Resources
+
+        ### Parent-Child Relationships
+
+        ```python
+        # Users endpoint
+        users_endpoint = clearskies.endpoints.RestfulApi(
+            url="users",
+            model_class=User,
+        )
+
+        # Orders endpoint (nested under users)
+        orders_endpoint = clearskies.endpoints.RestfulApi(
+            url="users/{user_id}/orders",
+            model_class=Order,
+        )
+
+        # Routes created:
+        # GET /users/{user_id}/orders
+        # GET /users/{user_id}/orders/{id}
+        # POST /users/{user_id}/orders
+        # etc.
+        ```
+
+        ### Filtering by Parent
+
+        ```python
+        class Order(clearskies.Model):
+            def where_for_request(
+                self,
+                model,
+                input_output,
+                routing_data,
+                authorization_data,
+                overrides={},
+            ):
+                # Filter by parent user_id from URL
+                user_id = routing_data.get("user_id")
+                if user_id:
+                    return model.where(f"user_id={user_id}")
+                return model
+        ```
+
+        ## HTTP Methods
+
+        ### Method Routing
+
+        RestfulApi automatically routes by HTTP method:
+
+        - GET → List/Get operations
+        - POST → Create operation
+        - PUT/PATCH → Update operation
+        - DELETE → Delete operation
+
+        ### Custom Method Handling
+
+        ```python
+        def my_endpoint(input_output):
+            method = input_output.request_method
+
+            if method == "GET":
+                return input_output.success({"action": "read"})
+            elif method == "POST":
+                return input_output.success({"action": "create"})
+            else:
+                return input_output.error("Method not allowed", 405)
+
+        endpoint = clearskies.endpoints.Callable(
+            url="custom",
+            callable=my_endpoint,
+            request_methods=["GET", "POST"],
+        )
+        ```
+
+        ## Query Parameters
+
+        Query parameters are separate from routing:
+
+        ```python
+        def my_endpoint(input_output):
+            # URL: /users?search=alice&limit=10
+            search = input_output.get_query_parameter("search")  # "alice"
+            limit = input_output.get_query_parameter("limit")    # "10"
+        ```
+
+        ## Route Matching Order
+
+        clearskies matches routes in this order:
+
+        1. **Exact matches** - `/users/admin` before `/users/{id}`
+        2. **Specific prefixes** - `/api/v2/users` before `/api/v1/users`
+        3. **Parameter routes** - Routes with parameters
+        4. **Wildcard routes** - Catch-all routes (if configured)
+
+        ## URL Encoding
+
+        Path parameters are automatically URL-decoded:
+
+        ```python
+        # URL: /users/alice%40example.com
+        # routing_data.get("id") = "alice@example.com"
+        ```
+
+        ## Best Practices
+
+        1. **Use semantic URLs**: `/users/{user_id}/orders` not `/get_user_orders`
+        2. **Keep URLs lowercase**: `/users` not `/Users`
+        3. **Use plural nouns**: `/users` not `/user`
+        4. **Use hyphens for multi-word**: `/user-profiles` not `/user_profiles`
+        5. **Version your APIs**: `/api/v1/users` not `/users_v1`
+        6. **Filter by routing_data**: Use parent IDs from the URL
+        7. **Validate path parameters**: Check IDs exist before using
+    """),
+    "endpoint_groups": textwrap.dedent("""\
+        # Endpoint Groups in clearskies
+
+        Endpoint groups allow you to organize multiple related endpoints under
+        a common URL prefix with shared configuration like authentication.
+
+        ## Basic EndpointGroup
+
+        ### Creating a Group
+
+        ```python
+        import clearskies
+        from clearskies import columns
+
+        class User(clearskies.Model):
+            id_column_name = "id"
+            backend = clearskies.backends.CursorBackend()
+            id = columns.Uuid()
+            name = columns.String()
+
+        class Order(clearskies.Model):
+            id_column_name = "id"
+            backend = clearskies.backends.CursorBackend()
+            id = columns.Uuid()
+            user_id = columns.BelongsToId(parent_model_class=User)
+
+        # Group multiple endpoints
+        api = clearskies.endpoints.EndpointGroup(
+            url="api/v1",
+            endpoints=[
+                clearskies.endpoints.RestfulApi(
+                    url="users",
+                    model_class=User,
+                ),
+                clearskies.endpoints.RestfulApi(
+                    url="orders",
+                    model_class=Order,
+                ),
+            ],
+        )
+
+        # Creates routes:
+        # /api/v1/users
+        # /api/v1/users/{id}
+        # /api/v1/orders
+        # /api/v1/orders/{id}
+        ```
+
+        ## Shared Authentication
+
+        Apply authentication to all endpoints in a group:
+
+        ```python
+        api = clearskies.endpoints.EndpointGroup(
+            url="api/v1",
+            authentication=clearskies.authentication.SecretBearer(
+                environment_key="API_SECRET",
+            ),
+            endpoints=[
+                clearskies.endpoints.RestfulApi(url="users", model_class=User),
+                clearskies.endpoints.RestfulApi(url="orders", model_class=Order),
+            ],
+        )
+
+        # All endpoints require authentication
+        ```
+
+        ## Mixing Endpoint Types
+
+        Combine different endpoint types:
+
+        ```python
+        api = clearskies.endpoints.EndpointGroup(
+            url="api/v1",
+            endpoints=[
+                # RESTful API endpoints
+                clearskies.endpoints.RestfulApi(url="users", model_class=User),
+
+                # Custom callable endpoint
+                clearskies.endpoints.Callable(
+                    url="health",
+                    callable=lambda io: io.success({"status": "ok"}),
+                ),
+
+                # List-only endpoint
+                clearskies.endpoints.List(
+                    url="reports",
+                    model_class=Report,
+                ),
+            ],
+        )
+        ```
+
+        ## Nested Groups
+
+        Create hierarchical endpoint structures:
+
+        ```python
+        # v1 API
+        v1_api = clearskies.endpoints.EndpointGroup(
+            url="api/v1",
+            endpoints=[
+                clearskies.endpoints.RestfulApi(url="users", model_class=User),
+            ],
+        )
+
+        # v2 API with different models
+        v2_api = clearskies.endpoints.EndpointGroup(
+            url="api/v2",
+            endpoints=[
+                clearskies.endpoints.RestfulApi(url="users", model_class=UserV2),
+            ],
+        )
+
+        # Root group containing both versions
+        root = clearskies.endpoints.EndpointGroup(
+            endpoints=[v1_api, v2_api],
+        )
+        ```
+
+        ## Per-Endpoint Configuration
+
+        Override group settings for specific endpoints:
+
+        ```python
+        # Different authentication for different endpoints
+        api = clearskies.endpoints.EndpointGroup(
+            url="api/v1",
+            authentication=clearskies.authentication.SecretBearer(
+                environment_key="API_SECRET",
+            ),
+            endpoints=[
+                # Uses group authentication
+                clearskies.endpoints.RestfulApi(url="orders", model_class=Order),
+
+                # Public endpoint - overrides group auth
+                clearskies.endpoints.Callable(
+                    url="health",
+                    callable=lambda io: io.success({"status": "ok"}),
+                    authentication=clearskies.authentication.Public(),
+                ),
+            ],
+        )
+        ```
+
+        ## Organizing Large APIs
+
+        ### By Resource
+
+        ```python
+        users_group = clearskies.endpoints.EndpointGroup(
+            url="users",
+            endpoints=[
+                clearskies.endpoints.List(url="", model_class=User),
+                clearskies.endpoints.Get(url="{id}", model_class=User),
+                clearskies.endpoints.Create(url="", model_class=User),
+            ],
+        )
+
+        orders_group = clearskies.endpoints.EndpointGroup(
+            url="orders",
+            endpoints=[
+                clearskies.endpoints.List(url="", model_class=Order),
+                clearskies.endpoints.Get(url="{id}", model_class=Order),
+            ],
+        )
+
+        api = clearskies.endpoints.EndpointGroup(
+            url="api/v1",
+            endpoints=[users_group, orders_group],
+        )
+        ```
+
+        ### By Feature
+
+        ```python
+        admin_api = clearskies.endpoints.EndpointGroup(
+            url="admin",
+            authentication=clearskies.authentication.SecretBearer(
+                environment_key="ADMIN_SECRET",
+            ),
+            endpoints=[
+                clearskies.endpoints.RestfulApi(url="users", model_class=User),
+                clearskies.endpoints.RestfulApi(url="settings", model_class=Settings),
+            ],
+        )
+
+        public_api = clearskies.endpoints.EndpointGroup(
+            url="public",
+            authentication=clearskies.authentication.Public(),
+            endpoints=[
+                clearskies.endpoints.List(url="products", model_class=Product),
+            ],
+        )
+        ```
+
+        ## EndpointGroup Configuration
+
+        | Parameter | Type | Description |
+        |-----------|------|-------------|
+        | `url` | str | URL prefix for all endpoints in the group |
+        | `endpoints` | list | List of endpoint instances |
+        | `authentication` | auth handler | Shared authentication (optional) |
+        | `cors` | dict | CORS configuration (optional) |
+
+        ## Complete Example
+
+        ```python
+        import clearskies
+        from clearskies import columns
+
+        # Models
+        class User(clearskies.Model):
+            id_column_name = "id"
+            backend = clearskies.backends.CursorBackend()
+            id = columns.Uuid()
+            name = columns.String()
+            email = columns.Email()
+
+        class Order(clearskies.Model):
+            id_column_name = "id"
+            backend = clearskies.backends.CursorBackend()
+            id = columns.Uuid()
+            user_id = columns.BelongsToId(parent_model_class=User)
+            total = columns.Float()
+
+        class Product(clearskies.Model):
+            id_column_name = "id"
+            backend = clearskies.backends.CursorBackend()
+            id = columns.Uuid()
+            name = columns.String()
+            price = columns.Float()
+
+        # Authentication
+        api_auth = clearskies.authentication.SecretBearer(
+            environment_key="API_SECRET"
+        )
+
+        # API structure
+        api = clearskies.endpoints.EndpointGroup(
+            url="api/v1",
+            authentication=api_auth,
+            endpoints=[
+                # User management
+                clearskies.endpoints.RestfulApi(
+                    url="users",
+                    model_class=User,
+                    readable_column_names=["id", "name", "email"],
+                    writeable_column_names=["name", "email"],
+                ),
+
+                # Order management
+                clearskies.endpoints.RestfulApi(
+                    url="orders",
+                    model_class=Order,
+                    readable_column_names=["id", "user_id", "total"],
+                    writeable_column_names=["user_id", "total"],
+                ),
+
+                # Public product catalog
+                clearskies.endpoints.List(
+                    url="products",
+                    model_class=Product,
+                    readable_column_names=["id", "name", "price"],
+                    authentication=clearskies.authentication.Public(),
+                ),
+
+                # Health check
+                clearskies.endpoints.Callable(
+                    url="health",
+                    callable=lambda io: io.success({"status": "ok"}),
+                    authentication=clearskies.authentication.Public(),
+                ),
+            ],
+        )
+
+        # Deploy with WSGI
+        wsgi = clearskies.contexts.WsgiRef(api)
+        wsgi()
+        ```
+
+        ## Best Practices
+
+        1. **Group related endpoints**: Keep logically related endpoints together
+        2. **Use consistent URL prefixes**: `/api/v1`, `/api/v2` for versioning
+        3. **Share authentication**: Apply auth at group level when possible
+        4. **Override when needed**: Individual endpoints can override group settings
+        5. **Keep groups focused**: Don't create overly large groups
+        6. **Version your APIs**: Use groups for version management
+        7. **Document group structure**: Make API organization clear
+    """),
+    "responses": textwrap.dedent("""\
+        # Response Handling in clearskies
+
+        clearskies provides several methods to build and return responses from endpoints.
+        Understanding these response types helps you create consistent APIs.
+
+        ## Standard Response Methods
+
+        All response methods are available on the `input_output` object:
+
+        ### Success Response
+
+        ```python
+        def my_endpoint(input_output):
+            data = {"user": {"id": "123", "name": "Alice"}}
+            return input_output.success(data)
+
+        # Response:
+        # {
+        #   "status": "success",
+        #   "data": {"user": {"id": "123", "name": "Alice"}}
+        # }
+        # HTTP Status: 200
+        ```
+
+        ### Error Response
+
+        ```python
+        def my_endpoint(input_output):
+            return input_output.error("User not found", 404)
+
+        # Response:
+        # {
+        #   "status": "error",
+        #   "error": "User not found"
+        # }
+        # HTTP Status: 404
+        ```
+
+        ### Input Errors (Validation)
+
+        ```python
+        def my_endpoint(input_output):
+            errors = {
+                "email": "Email is required",
+                "name": "Name must be at least 3 characters",
+            }
+            return input_output.input_errors(errors)
+
+        # Response:
+        # {
+        #   "status": "input_errors",
+        #   "errors": {
+        #     "email": "Email is required",
+        #     "name": "Name must be at least 3 characters"
+        #   }
+        # }
+        # HTTP Status: 400
+        ```
+
+        ## Custom Responses
+
+        ### Custom Response with Status Code
+
+        ```python
+        def my_endpoint(input_output):
+            return input_output.respond(
+                body={"message": "Created successfully"},
+                status_code=201,
+            )
+        ```
+
+        ### Custom Response with Headers
+
+        ```python
+        def my_endpoint(input_output):
+            return input_output.respond(
+                body={"data": "..."},
+                status_code=200,
+                headers={
+                    "X-Custom-Header": "value",
+                    "Cache-Control": "max-age=3600",
+                },
+            )
+        ```
+
+        ### Redirect Response
+
+        ```python
+        def my_endpoint(input_output):
+            return input_output.redirect("/new-location", 302)
+
+        # HTTP Status: 302
+        # Location header set to: /new-location
+        ```
+
+        ## Content Types
+
+        ### JSON (Default)
+
+        ```python
+        def my_endpoint(input_output):
+            # Automatically serialized to JSON
+            return input_output.success({
+                "items": [1, 2, 3],
+                "nested": {"key": "value"},
+            })
+
+        # Content-Type: application/json
+        ```
+
+        ### Plain Text
+
+        ```python
+        def my_endpoint(input_output):
+            return input_output.respond(
+                body="Plain text response",
+                status_code=200,
+                headers={"Content-Type": "text/plain"},
+            )
+        ```
+
+        ### CSV
+
+        ```python
+        def my_endpoint(input_output):
+            csv_data = "name,email\\nAlice,alice@example.com\\nBob,bob@example.com"
+            return input_output.respond(
+                body=csv_data,
+                status_code=200,
+                headers={
+                    "Content-Type": "text/csv",
+                    "Content-Disposition": "attachment; filename=users.csv",
+                },
+            )
+        ```
+
+        ### XML
+
+        ```python
+        def my_endpoint(input_output):
+            xml_data = '<?xml version="1.0"?><users><user><name>Alice</name></user></users>'
+            return input_output.respond(
+                body=xml_data,
+                status_code=200,
+                headers={"Content-Type": "application/xml"},
+            )
+        ```
+
+        ## HTTP Status Codes
+
+        ### Success Codes (2xx)
+
+        ```python
+        # 200 OK - Standard success
+        return input_output.success({"data": "..."})
+
+        # 201 Created - Resource created
+        return input_output.respond({"id": "123"}, 201)
+
+        # 202 Accepted - Request accepted for processing
+        return input_output.respond({"job_id": "abc"}, 202)
+
+        # 204 No Content - Success with no body
+        return input_output.respond(body=None, status_code=204)
+        ```
+
+        ### Client Error Codes (4xx)
+
+        ```python
+        # 400 Bad Request - Invalid input
+        return input_output.error("Invalid request", 400)
+
+        # 401 Unauthorized - Authentication required
+        return input_output.error("Unauthorized", 401)
+
+        # 403 Forbidden - Authenticated but not authorized
+        return input_output.error("Forbidden", 403)
+
+        # 404 Not Found - Resource doesn't exist
+        return input_output.error("Not found", 404)
+
+        # 409 Conflict - Resource conflict (e.g., duplicate)
+        return input_output.error("Email already exists", 409)
+
+        # 422 Unprocessable Entity - Validation errors
+        return input_output.input_errors({"email": "Invalid format"})
+        ```
+
+        ### Server Error Codes (5xx)
+
+        ```python
+        # 500 Internal Server Error
+        return input_output.error("Internal server error", 500)
+
+        # 503 Service Unavailable
+        return input_output.error("Service temporarily unavailable", 503)
+        ```
+
+        ## Response Headers
+
+        ### Cache Control
+
+        ```python
+        def my_endpoint(input_output):
+            return input_output.respond(
+                body={"data": "..."},
+                status_code=200,
+                headers={
+                    "Cache-Control": "public, max-age=3600",
+                    "Expires": "Wed, 21 Oct 2026 07:28:00 GMT",
+                },
+            )
+        ```
+
+        ### CORS Headers
+
+        CORS is typically configured at the context level:
+
+        ```python
+        wsgi = clearskies.contexts.WsgiRef(
+            my_endpoint,
+            cors={
+                "allowed_origins": ["https://example.com"],
+                "allowed_methods": ["GET", "POST", "PUT", "DELETE"],
+                "allowed_headers": ["Authorization", "Content-Type"],
+                "expose_headers": ["X-Total-Count"],
+                "max_age": 3600,
+            },
+        )
+        ```
+
+        ### Custom Headers
+
+        ```python
+        def my_endpoint(input_output):
+            return input_output.respond(
+                body={"data": "..."},
+                status_code=200,
+                headers={
+                    "X-Request-ID": "abc-123",
+                    "X-Rate-Limit-Remaining": "99",
+                    "X-Custom-Header": "value",
+                },
+            )
+        ```
+
+        ## Pagination Responses
+
+        ### With Metadata
+
+        ```python
+        def my_endpoint(input_output, users):
+            page = int(input_output.get_query_parameter("page", "1"))
+            limit = int(input_output.get_query_parameter("limit", "20"))
+            offset = (page - 1) * limit
+
+            user_list = list(users.limit(limit).pagination(start=offset))
+            total = users.count()
+
+            return input_output.success({
+                "users": [u.to_dict() for u in user_list],
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": total,
+                    "pages": (total + limit - 1) // limit,
+                },
+            })
+        ```
+
+        ### With Link Headers
+
+        ```python
+        def my_endpoint(input_output, users):
+            page = int(input_output.get_query_parameter("page", "1"))
+            limit = 20
+
+            user_list = list(users.limit(limit).pagination(start=(page - 1) * limit))
+            total = users.count()
+            pages = (total + limit - 1) // limit
+
+            # Build Link header
+            links = []
+            if page > 1:
+                links.append(f'</users?page=1>; rel="first"')
+                links.append(f'</users?page={page - 1}>; rel="prev"')
+            if page < pages:
+                links.append(f'</users?page={page + 1}>; rel="next"')
+                links.append(f'</users?page={pages}>; rel="last"')
+
+            return input_output.respond(
+                body={"users": [u.to_dict() for u in user_list]},
+                status_code=200,
+                headers={
+                    "Link": ", ".join(links),
+                    "X-Total-Count": str(total),
+                },
+            )
+        ```
+
+        ## Error Response Patterns
+
+        ### Consistent Error Format
+
+        ```python
+        def handle_error(error, input_output):
+            if isinstance(error, ValidationError):
+                return input_output.input_errors(error.errors)
+
+            if isinstance(error, NotFoundError):
+                return input_output.error("Resource not found", 404)
+
+            # Log unexpected errors
+            logging.exception("Unexpected error")
+            return input_output.error("Internal server error", 500)
+        ```
+
+        ### Detailed Error Information
+
+        ```python
+        def my_endpoint(input_output):
+            try:
+                # ... operation ...
+                pass
+            except Exception as e:
+                return input_output.respond(
+                    body={
+                        "status": "error",
+                        "error": str(e),
+                        "code": "ERR_OPERATION_FAILED",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
+                    status_code=500,
+                )
+        ```
+
+        ## File Downloads
+
+        ```python
+        def my_endpoint(input_output):
+            file_content = generate_file_content()
+
+            return input_output.respond(
+                body=file_content,
+                status_code=200,
+                headers={
+                    "Content-Type": "application/octet-stream",
+                    "Content-Disposition": 'attachment; filename="export.csv"',
+                },
+            )
+        ```
+
+        ## Best Practices
+
+        1. **Use appropriate status codes**: Match HTTP semantics
+        2. **Consistent response format**: Use success/error/input_errors
+        3. **Include helpful messages**: Clear error descriptions
+        4. **Set correct content types**: Match body format
+        5. **Use pagination for lists**: Don't return unbounded data
+        6. **Include metadata**: Total counts, pagination info
+        7. **Handle errors gracefully**: Don't expose internal details
+        8. **Use proper cache headers**: For cacheable resources
+        9. **Document response formats**: In API docs
+        10. **Version your responses**: Maintain backward compatibility
+    """),
 }

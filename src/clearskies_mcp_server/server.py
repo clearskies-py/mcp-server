@@ -24,6 +24,9 @@ from .resources import (
     # Phase 6.4: Reference Material
     docs_column_reference,
     docs_columns,
+    docs_component_inheritance,
+    docs_configs_module,
+    docs_configurable,
     docs_configuration,
     docs_contexts,
     docs_cursors,
@@ -35,8 +38,11 @@ from .resources import (
     docs_endpoints,
     docs_error_handling,
     docs_exceptions,
+    docs_injectable,
+    docs_injectable_properties,
     docs_input_handling,
     docs_input_output,
+    docs_loggable,
     docs_logging,
     docs_migrations,
     docs_model_lifecycle,
@@ -421,6 +427,36 @@ mcp.resource(
 mcp.resource(
     "clearskies://docs/patterns", name="docs_patterns", description="Common patterns cookbook for clearskies."
 )(docs_patterns)
+
+# Base class concepts
+mcp.resource(
+    "clearskies://docs/injectable-properties",
+    name="docs_injectable_properties",
+    description="Documentation about the InjectableProperties mixin.",
+)(docs_injectable_properties)
+mcp.resource(
+    "clearskies://docs/configurable",
+    name="docs_configurable",
+    description="Documentation about the Configurable mixin.",
+)(docs_configurable)
+mcp.resource("clearskies://docs/loggable", name="docs_loggable", description="Documentation about the Loggable mixin.")(
+    docs_loggable
+)
+mcp.resource(
+    "clearskies://docs/injectable",
+    name="docs_injectable",
+    description="Documentation about the Injectable abstract base class.",
+)(docs_injectable)
+mcp.resource(
+    "clearskies://docs/configs-module",
+    name="docs_configs_module",
+    description="Documentation about the configs module.",
+)(docs_configs_module)
+mcp.resource(
+    "clearskies://docs/component-inheritance",
+    name="docs_component_inheritance",
+    description="Documentation about component inheritance hierarchy.",
+)(docs_component_inheritance)
 
 # Example resources
 mcp.resource(
