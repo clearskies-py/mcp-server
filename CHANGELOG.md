@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] - 2026-02-26
 
 ### Changed
+- Bump version to v1.1.0 by @github-actions[bot]
 - Increase v1→v2 migration coverage from 45% to 85%
 
 ## [1.0.1] - 2026-02-26
