@@ -78,6 +78,11 @@ from .examples import (
     example_state_machine_advanced,
     example_testing,
 )
+from .migration import (
+    breaking_changes,
+    migration_guide,
+    migration_patterns,
+)
 from .modules import (
     module_akeyless,
     module_aws,
@@ -175,4 +180,8 @@ __all__ = [
     "module_akeyless",
     # Style resources
     "style_docstrings",
+    # Migration resources (v1 → v2)
+    "migration_guide",
+    "breaking_changes",
+    "migration_patterns",
 ]

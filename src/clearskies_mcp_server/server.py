@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 # Import resources from the resources package
 from .resources import (
+    breaking_changes,
     docs_advanced_columns,
     docs_advanced_queries,
     docs_async,
@@ -81,6 +82,8 @@ from .resources import (
     example_secrets_backend,
     example_state_machine_advanced,
     example_testing,
+    migration_guide,
+    migration_patterns,
     module_akeyless,
     module_aws,
     module_cortex,
@@ -95,16 +98,19 @@ from .resources import (
 
 # Import tools from the tools package
 from .tools import (
+    analyze_v1_project,
     check_module_compatibility,
     # Concept explanation
     explain_concept,
     explain_module,
+    explain_v1_v2_difference,
     generate_context,
     generate_endpoint,
     generate_endpoint_group,
     # Generation tools
     generate_model,
     generate_model_with_relationships,
+    generate_v2_migration,
     # Extended type info
     get_authentication_info,
     get_backend_info,
@@ -119,6 +125,7 @@ from .tools import (
     get_exception_info,
     get_functional_info,
     get_input_output_info,
+    get_migration_checklist,
     get_module_components,
     get_module_info,
     get_query_info,
@@ -147,6 +154,7 @@ from .tools import (
     list_available_validators,
     # Module tools (with dynamic discovery)
     list_modules,
+    map_v1_to_v2,
     refresh_module_cache,
     # Scaffolding tools
     scaffold_project,
@@ -228,6 +236,13 @@ mcp.tool()(get_module_components)
 mcp.tool()(suggest_modules)
 mcp.tool()(check_module_compatibility)
 mcp.tool()(refresh_module_cache)
+
+# Migration tools (v1 → v2)
+mcp.tool()(analyze_v1_project)
+mcp.tool()(generate_v2_migration)
+mcp.tool()(map_v1_to_v2)
+mcp.tool()(explain_v1_v2_difference)
+mcp.tool()(get_migration_checklist)
 
 # =============================================================================
 # RESOURCE REGISTRATION
@@ -576,6 +591,23 @@ mcp.resource(
     name="style_docstrings",
     description="Docstring style guide for clearskies framework code.",
 )(style_docstrings)
+
+# Migration resources (v1 → v2)
+mcp.resource(
+    "clearskies://migration/guide",
+    name="migration_guide",
+    description="Complete guide for migrating from clearskies v1 to v2.",
+)(migration_guide)
+mcp.resource(
+    "clearskies://migration/breaking-changes",
+    name="breaking_changes",
+    description="Complete list of breaking changes between v1 and v2.",
+)(breaking_changes)
+mcp.resource(
+    "clearskies://migration/patterns",
+    name="migration_patterns",
+    description="Common v1 patterns and their v2 equivalents.",
+)(migration_patterns)
 
 
 def main():

@@ -7,7 +7,7 @@ endpoint types, backend types, context types, and many more module categories.
 
 import inspect
 import json
-from typing import Any
+from typing import Any, Mapping
 
 import clearskies
 import clearskies.authentication
@@ -444,7 +444,7 @@ def get_class_info(cls: type, category_name: str = "Type") -> str:
     return "\n".join(parts)
 
 
-def list_types_formatted(type_registry: dict[str, type]) -> str:
+def list_types_formatted(type_registry: Mapping[str, type]) -> str:
     """Format a type registry as a markdown list.
 
     Args:

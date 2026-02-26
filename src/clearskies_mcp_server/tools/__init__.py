@@ -52,6 +52,13 @@ from .generation import (
     generate_endpoint_group,
     generate_model,
 )
+from .migration import (
+    analyze_v1_project,
+    explain_v1_v2_difference,
+    generate_v2_migration,
+    get_migration_checklist,
+    map_v1_to_v2,
+)
 from .modules import (
     check_module_compatibility,
     explain_module,
@@ -125,4 +132,10 @@ __all__ = [
     "suggest_modules",
     "check_module_compatibility",
     "refresh_module_cache",
+    # Migration tools (v1 → v2)
+    "analyze_v1_project",
+    "generate_v2_migration",
+    "map_v1_to_v2",
+    "explain_v1_v2_difference",
+    "get_migration_checklist",
 ]
