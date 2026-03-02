@@ -122,6 +122,11 @@ def docs_validators() -> str:
     return explain_concept("validator")
 
 
+def docs_schema() -> str:
+    """Documentation about clearskies Schema class."""
+    return explain_concept("schema")
+
+
 def docs_testing() -> str:
     """Documentation about testing clearskies applications."""
     return explain_concept("testing")
@@ -195,6 +200,26 @@ def docs_async() -> str:
 def docs_state_machine_advanced() -> str:
     """Documentation about advanced state machine patterns in clearskies."""
     return explain_concept("state_machine_advanced")
+
+
+def docs_state_machine() -> str:
+    """Documentation about state machines in clearskies."""
+    return explain_concept("state_machine")
+
+
+def docs_autodoc() -> str:
+    """Documentation about automatic API documentation generation."""
+    return explain_concept("autodoc")
+
+
+def docs_declarative_programming() -> str:
+    """Documentation about declarative programming in clearskies."""
+    return explain_concept("declarative_programming")
+
+
+def docs_infrastructure_neutral() -> str:
+    """Documentation about infrastructure-neutral deployment."""
+    return explain_concept("infrastructure_neutral")
 
 
 def docs_secrets_backend() -> str:

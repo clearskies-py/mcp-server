@@ -16,6 +16,7 @@ from .resources import (
     docs_auth_flow,
     docs_authentication,
     docs_authorization,
+    docs_autodoc,
     docs_backend_cursor,
     # Phase 6.1: Backend Foundations
     docs_backend_memory,
@@ -31,6 +32,7 @@ from .resources import (
     docs_configuration,
     docs_contexts,
     docs_cursors,
+    docs_declarative_programming,
     docs_di,
     # Phase 6.2: Framework Internals
     docs_di_advanced,
@@ -39,6 +41,7 @@ from .resources import (
     docs_endpoints,
     docs_error_handling,
     docs_exceptions,
+    docs_infrastructure_neutral,
     docs_injectable,
     docs_injectable_properties,
     docs_input_handling,
@@ -57,7 +60,9 @@ from .resources import (
     docs_responses,
     docs_routing,
     docs_save_lifecycle,
+    docs_schema,
     docs_secrets_backend,
+    docs_state_machine,
     docs_state_machine_advanced,
     docs_testing,
     docs_transactions,
@@ -287,6 +292,9 @@ mcp.resource(
     "clearskies://docs/validators", name="docs_validators", description="Documentation about clearskies validators."
 )(docs_validators)
 mcp.resource(
+    "clearskies://docs/schema", name="docs_schema", description="Documentation about clearskies Schema class."
+)(docs_schema)
+mcp.resource(
     "clearskies://docs/testing", name="docs_testing", description="Documentation about testing clearskies applications."
 )(docs_testing)
 mcp.resource(
@@ -349,10 +357,30 @@ mcp.resource(
     "clearskies://docs/async", name="docs_async", description="Documentation about async patterns in clearskies."
 )(docs_async)
 mcp.resource(
+    "clearskies://docs/state-machine",
+    name="docs_state_machine",
+    description="Documentation about state machines in clearskies.",
+)(docs_state_machine)
+mcp.resource(
     "clearskies://docs/state-machine-advanced",
     name="docs_state_machine_advanced",
     description="Documentation about advanced state machine patterns in clearskies.",
 )(docs_state_machine_advanced)
+mcp.resource(
+    "clearskies://docs/autodoc",
+    name="docs_autodoc",
+    description="Documentation about automatic API documentation generation.",
+)(docs_autodoc)
+mcp.resource(
+    "clearskies://docs/declarative-programming",
+    name="docs_declarative_programming",
+    description="Documentation about declarative programming in clearskies.",
+)(docs_declarative_programming)
+mcp.resource(
+    "clearskies://docs/infrastructure-neutral",
+    name="docs_infrastructure_neutral",
+    description="Documentation about infrastructure-neutral deployment.",
+)(docs_infrastructure_neutral)
 mcp.resource(
     "clearskies://docs/secrets-backend",
     name="docs_secrets_backend",
