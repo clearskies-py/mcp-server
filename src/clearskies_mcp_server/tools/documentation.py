@@ -4,6 +4,8 @@ Documentation tools for clearskies MCP server.
 This module contains tools for listing and documenting clearskies types.
 """
 
+import textwrap
+
 from ..concepts import CONCEPT_EXPLANATIONS
 from ..introspection import (
     AUTHENTICATION_TYPES,
@@ -28,6 +30,46 @@ from ..introspection import (
     get_init_params,
     list_types_formatted,
 )
+
+RELATIONSHIP_COLUMN_TYPES = {
+    "BelongsToId",
+    "BelongsToModel",
+    "HasOne",
+    "HasMany",
+    "ManyToManyIds",
+    "ManyToManyModels",
+    "ManyToManyIdsWithData",
+    "ManyToManyPivots",
+}
+
+
+def _model_reference_wrapper_pattern() -> str:
+    return textwrap.dedent("""\
+        ## Model Reference Wrapper Pattern (Typed + Lazy)
+
+        Use this pattern for relationship model references to preserve lazy imports
+        while improving static type inference:
+
+        ```python
+        from __future__ import annotations
+
+        from typing import TYPE_CHECKING
+
+        from clearskies.model import ModelClassReference
+
+        if TYPE_CHECKING:
+            from ..user import User
+
+
+        class UserReference(ModelClassReference["User"]):
+            def get_model_class(self) -> type["User"]:
+                # Keep runtime import lazy to avoid circular imports.
+                from ..user import User
+
+                return User
+        ```
+    """)
+
 
 # ---------------------------------------------------------------------------
 # Core type listing functions (existing)
@@ -233,7 +275,12 @@ def get_column_info(column_type: str) -> str:
     if cls is None:
         available = ", ".join(sorted(COLUMN_TYPES))
         return f"Unknown column type '{column_type}'. Available types: {available}"
-    return get_class_info(cls, "Column")
+    info = get_class_info(cls, "Column")
+
+    if column_type in RELATIONSHIP_COLUMN_TYPES:
+        info += "\n\n" + _model_reference_wrapper_pattern()
+
+    return info
 
 
 def get_endpoint_info(endpoint_type: str) -> str:
