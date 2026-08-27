@@ -1,11 +1,11 @@
 """
 clearskies MCP Server - Main entry point.
 
-This module provides the FastMCP server that exposes clearskies framework
+This module provides the MCPServer that exposes clearskies framework
 documentation, code generation tools, and examples as MCP resources and tools.
 """
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 # Import resources from the resources package
 from .resources import (
@@ -167,8 +167,8 @@ from .tools import (
     suggest_modules,
 )
 
-# Create the FastMCP server instance
-mcp = FastMCP(
+# Create the MCPServer instance
+mcp = MCPServer(
     "clearskies",
     instructions="MCP server for the clearskies Python framework – code generation, documentation, and scaffolding.",
 )
