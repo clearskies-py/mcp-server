@@ -63,7 +63,7 @@ MODULE_EXAMPLES: dict[str, str] = {
 ```bash
 pip install clear-skies-aws
 # Or with clearskies-mcp:
-pip install clearskies-mcp[aws]
+pip install clear-skies-mcp-server[aws]
 ```
 
 ## Lambda behind ALB
@@ -130,7 +130,7 @@ def lambda_handler(event, context):
 ```bash
 pip install clear-skies-gitlab
 # Or with clearskies-mcp:
-pip install clearskies-mcp[gitlab]
+pip install clear-skies-mcp-server[gitlab]
 ```
 
 ## Environment Setup
@@ -161,7 +161,7 @@ cli = clearskies.contexts.Cli(
 ```bash
 pip install clear-skies-cortex
 # Or with clearskies-mcp:
-pip install clearskies-mcp[cortex]
+pip install clear-skies-mcp-server[cortex]
 ```
 
 ## Environment Setup
@@ -190,9 +190,9 @@ cli = clearskies.contexts.Cli(
 
 ## Installation
 ```bash
-pip install clearskies-snyk
+pip install clear-skies-snyk
 # Or with clearskies-mcp:
-pip install clearskies-mcp[snyk]
+pip install clear-skies-mcp-server[snyk]
 ```
 
 ## Environment Setup
@@ -227,7 +227,7 @@ cli = clearskies.contexts.Cli(
 ```bash
 pip install clear-skies-akeyless-custom-producer
 # Or with clearskies-mcp:
-pip install clearskies-mcp[akeyless]
+pip install clear-skies-mcp-server[akeyless]
 ```
 
 ## NoInput Endpoint (Producer without user input)
@@ -316,4 +316,4 @@ def get_optional_install_command(module_name: str) -> str:
         return f"# Unknown module: {module_name}"
 
     opt_name = info.get("optional_dep_name", module_name.split("-")[-1])
-    return f"pip install clearskies-mcp[{opt_name}]"
+    return f"pip install clear-skies-mcp-server[{opt_name}]"

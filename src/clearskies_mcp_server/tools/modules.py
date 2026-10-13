@@ -62,10 +62,10 @@ def list_modules() -> str:
         for name in sorted(not_installed.keys()):
             info = KNOWN_MODULES[name]
             opt_name = info.get("optional_dep_name", name.split("-")[-1])
-            lines.append(f"pip install clearskies-mcp[{opt_name}]")
+            lines.append(f"pip install clear-skies-mcp-server[{opt_name}]")
         lines.append("")
         lines.append("# Or install all modules:")
-        lines.append("pip install clearskies-mcp[all]")
+        lines.append("pip install clear-skies-mcp-server[all]")
         lines.append("```")
 
     return "\n".join(lines)
