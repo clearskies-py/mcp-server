@@ -23,7 +23,7 @@ class TypeHintGenerator:
         "id": "str | int",
         "kwargs": "Any",
         "cursor": "Cursor",
-        "di": "DI",
+        "di": "Di",
         "models": "Models",
         "utcnow": "callable",
         "environment": "Environment",
@@ -192,11 +192,9 @@ class TypeHintGenerator:
         if re.search(r":\s*Model", code) or re.search(r"->\s*Model", code):
             required.append("from clearskies.model import Model")
         if "Cursor" in code:
-            required.append("from clearskies.backends.cursor import Cursor")
-        if "DI" in code and "from clearskies" not in code:
-            required.append("from clearskies.di.di import DI")
-        if "Models" in code:
-            required.append("from clearskies.models import Models")
+            required.append("from clearskies.cursors import Cursor")
+        if re.search(r":\s*Di\b", code) and "from clearskies" not in code:
+            required.append("from clearskies.di.di import Di")
         if "Environment" in code:
             required.append("from clearskies.environment import Environment")
         if "Logger" in code:

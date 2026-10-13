@@ -17,7 +17,7 @@ class V1ToV2Mapper:
     CLASS_MAPPINGS = {
         # Handlers → Endpoints
         "clearskies.handlers.RestfulAPI": "clearskies.endpoints.RestfulApi",
-        "clearskies.handlers.SimpleRouting": "clearskies.endpoints.SimpleRouting",
+        "clearskies.handlers.SimpleRouting": "clearskies.EndpointGroup",
         "clearskies.handlers.Callable": "clearskies.endpoints.Callable",
         # Application → Contexts
         "clearskies.Application": "clearskies.contexts.Wsgi",
@@ -27,14 +27,14 @@ class V1ToV2Mapper:
         "clearskies.column_types.Integer": "clearskies.columns.Integer",
         "clearskies.column_types.Float": "clearskies.columns.Float",
         "clearskies.column_types.Boolean": "clearskies.columns.Boolean",
-        "clearskies.column_types.DateTime": "clearskies.columns.DateTime",
+        "clearskies.column_types.DateTime": "clearskies.columns.Datetime",
         "clearskies.column_types.Created": "clearskies.columns.Created",
         "clearskies.column_types.Updated": "clearskies.columns.Updated",
         "clearskies.column_types.Email": "clearskies.columns.Email",
         "clearskies.column_types.JSON": "clearskies.columns.Json",
-        "clearskies.column_types.BelongsTo": "clearskies.columns.BelongsTo",
+        "clearskies.column_types.BelongsTo": "clearskies.columns.BelongsToId",
         "clearskies.column_types.HasMany": "clearskies.columns.HasMany",
-        "clearskies.column_types.ManyToMany": "clearskies.columns.ManyToMany",
+        "clearskies.column_types.ManyToMany": "clearskies.columns.ManyToManyIds",
     }
 
     # Import path mappings

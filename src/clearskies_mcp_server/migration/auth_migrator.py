@@ -101,11 +101,9 @@ class AuthenticationGenerator:
     # Authentication type mappings
     AUTH_MAPPINGS = {
         "SecretBearer": "clearskies.authentication.SecretBearer",
-        "SecretBasic": "clearskies.authentication.SecretBasic",
-        "JWKS": "clearskies.authentication.JWKS",
-        "JWT": "clearskies.authentication.JWT",
+        "JWKS": "clearskies.authentication.Jwks",
         "Public": "clearskies.authentication.Public",
-        "OAuth2": "clearskies.authentication.OAuth2",
+        "OAuth2": "clearskies.authentication.Oauth",
     }
 
     def generate_auth(self, auth_config: "AuthConfig") -> str:
@@ -149,10 +147,9 @@ class AuthenticationGenerator:
         """Generate SecretBasic authentication."""
         username_key = auth_config.config.get("username_key", "API_USERNAME")
         password_key = auth_config.config.get("password_key", "API_PASSWORD")
-        return f"""authentication=clearskies.authentication.SecretBasic(
-        username_key="{username_key}",
-        password_key="{password_key}"
-    )"""
+        return f"""# TODO: clearskies v2 has no SecretBasic; implement a custom
+    # clearskies.authentication.Authentication subclass that checks
+    # the {username_key} / {password_key} credentials."""
 
     def _generate_jwks(self, auth_config: "AuthConfig") -> str:
         """Generate JWKS authentication."""
@@ -160,9 +157,9 @@ class AuthenticationGenerator:
         audience = auth_config.config.get("audience", "your-audience")
 
         lines = [
-            "authentication=clearskies.authentication.JWKS(",
+            "authentication=clearskies.authentication.Jwks(",
             f'        jwks_url="{jwks_url}",',
-            f'        audience="{audience}"',
+            f'        audience="{audience}",',
         ]
 
         # Add optional parameters
@@ -177,19 +174,18 @@ class AuthenticationGenerator:
         secret_key = auth_config.config.get("secret_key", "JWT_SECRET")
         algorithm = auth_config.config.get("algorithm", "HS256")
 
-        return f"""authentication=clearskies.authentication.JWT(
-        secret_key="{secret_key}",
-        algorithm="{algorithm}"
-    )"""
+        return f"""# TODO: clearskies v2 has no shared-secret JWT authentication
+    # (v1 used secret {secret_key}, algorithm {algorithm}). Use
+    # clearskies.authentication.Jwks with your identity provider's JWKS URL,
+    # or implement a custom clearskies.authentication.Authentication subclass."""
 
     def _generate_oauth2(self, auth_config: "AuthConfig") -> str:
         """Generate OAuth2 authentication."""
-        return """authentication=clearskies.authentication.OAuth2(
-        # TODO: Configure OAuth2 parameters
-        client_id="your-client-id",
-        client_secret="your-client-secret",
-        authorization_url="https://provider.com/oauth/authorize",
-        token_url="https://provider.com/oauth/token"
+        return """authentication=clearskies.authentication.Oauth(
+        # TODO: Configure OAuth parameters
+        auth_url="https://auth.example.com/oauth/authorize",
+        jwks_url="https://auth.example.com/.well-known/jwks.json",
+        audience="your-audience",
     )"""
 
     def generate_auth_imports(self, auth_type: str) -> list[str]:
