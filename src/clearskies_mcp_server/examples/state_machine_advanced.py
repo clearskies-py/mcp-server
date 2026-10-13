@@ -149,7 +149,7 @@ class Order(clearskies.Model):
         """Validate state transitions and track history."""
         # Validate order status transition
         if "order_status" in data:
-            current = self.order_status if self.exists else None
+            current = self.order_status if self else None
             new = data["order_status"]
             if new not in ORDER_TRANSITIONS.get(current, []):
                 raise ValueError(
@@ -159,7 +159,7 @@ class Order(clearskies.Model):
 
         # Validate payment status transition
         if "payment_status" in data:
-            current = self.payment_status if self.exists else None
+            current = self.payment_status if self else None
             new = data["payment_status"]
             if new not in PAYMENT_TRANSITIONS.get(current, []):
                 raise ValueError(
@@ -168,25 +168,25 @@ class Order(clearskies.Model):
                 )
 
         # Track status history
-        history = self.status_history.copy() if self.exists else []
+        history = self.status_history.copy() if self else []
 
-        if "order_status" in data and (not self.exists or data["order_status"] != self.order_status):
+        if "order_status" in data and (not self or data["order_status"] != self.order_status):
             history.append({
                 "type": "order_status",
-                "from": self.order_status if self.exists else None,
+                "from": self.order_status if self else None,
                 "to": data["order_status"],
                 "timestamp": datetime.utcnow().isoformat(),
             })
 
-        if "payment_status" in data and (not self.exists or data["payment_status"] != self.payment_status):
+        if "payment_status" in data and (not self or data["payment_status"] != self.payment_status):
             history.append({
                 "type": "payment_status",
-                "from": self.payment_status if self.exists else None,
+                "from": self.payment_status if self else None,
                 "to": data["payment_status"],
                 "timestamp": datetime.utcnow().isoformat(),
             })
 
-        if history != (self.status_history if self.exists else []):
+        if history != (self.status_history if self else []):
             data["status_history"] = history
 
         return data

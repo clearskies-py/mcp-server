@@ -58,8 +58,7 @@ ADVANCED_CONCEPTS = {
 
         cli = clearskies.contexts.Cli(
             clearskies.endpoints.Callable(
-                callable=aggregate_data,
-                input_requirements={"urls": list},
+                to_call=aggregate_data,
             )
         )
         ```
@@ -251,7 +250,7 @@ ADVANCED_CONCEPTS = {
 
             def pre_save(self, data):
                 if "status" in data:
-                    current_status = self.status if self.exists else None
+                    current_status = self.status if self else None
                     new_status = data["status"]
 
                     if new_status not in VALID_TRANSITIONS.get(current_status, []):
@@ -279,7 +278,7 @@ ADVANCED_CONCEPTS = {
 
             def pre_save(self, data):
                 # Only allow amount changes in draft status
-                if "amount" in data and self.exists and self.status != "draft":
+                if "amount" in data and self and self.status != "draft":
                     raise ValueError("Cannot modify amount after submission")
 
                 # Auto-approve small orders
@@ -362,10 +361,10 @@ ADVANCED_CONCEPTS = {
             status_history = columns.Json(default=[])
 
             def pre_save(self, data):
-                if "status" in data and (not self.exists or data["status"] != self.status):
-                    history = self.status_history.copy() if self.exists else []
+                if "status" in data and (not self or data["status"] != self.status):
+                    history = self.status_history.copy() if self else []
                     history.append({
-                        "from": self.status if self.exists else None,
+                        "from": self.status if self else None,
                         "to": data["status"],
                         "timestamp": datetime.utcnow().isoformat(),
                         "changed_by": data.get("_changed_by", "system"),
@@ -490,210 +489,124 @@ ADVANCED_CONCEPTS = {
         6. **Document state diagrams** – Make state machines visible to the team
     """),
     "secrets_backend": textwrap.dedent("""\
-        # Secrets Backend in clearskies
+        # Secrets in clearskies
 
-        The SecretsBackend allows you to store model data in a secrets manager instead of
-        a traditional database. This is useful for storing sensitive configuration data
-        that needs to be managed as structured records.
+        clearskies 2.x does not store models in a secrets manager (`SecretsBackend` is not
+        exported from `clearskies.backends` and should not be used). Instead, secrets are a
+        dependency named `secrets`: bind a secret manager once, then read secrets wherever
+        they are needed.
 
-        ## Overview
+        ## Secret Managers
 
-        SecretsBackend:
-        - Stores each record as a separate secret
-        - Supports CRUD operations like other backends
-        - Integrates with AWS Secrets Manager, Akeyless, etc.
-        - Useful for managing API keys, credentials, configuration
-
-        ## Basic Usage
-
-        ```python
-        import clearskies
-        from clearskies import columns
-
-        class ApiCredential(clearskies.Model):
-            id_column_name = "id"
-            backend = clearskies.backends.SecretsBackend(
-                secret_prefix="api-credentials/",
-            )
-
-            id = columns.String()
-            name = columns.String()
-            api_key = columns.String()
-            api_secret = columns.String()
-            environment = columns.Select(["development", "staging", "production"])
-            created_at = columns.Created()
-            updated_at = columns.Updated()
-        ```
-
-        ## AWS Secrets Manager Integration
-
-        Using clearskies-aws:
+        - `clearskies.secrets.Secrets` – base class and the default `secrets` dependency.
+          Every method raises `NotImplementedError`, so you must bind a real manager.
+        - `clearskies.secrets.Akeyless` – Akeyless vault (requires the `akeyless` SDK).
+        - `clearskies_aws.secrets.SecretsManager` / `clearskies_aws.secrets.ParameterStore` –
+          AWS Secrets Manager and SSM Parameter Store (from clearskies-aws).
 
         ```python
         import clearskies
-        import clearskies_aws
-        from clearskies import columns
 
-        class DatabaseCredential(clearskies.Model):
-            id_column_name = "id"
-            backend = clearskies_aws.backends.SecretsManagerBackend(
-                secret_prefix="database-credentials/",
-                region="us-east-1",
-            )
-
-            id = columns.String()
-            name = columns.String()
-            host = columns.String()
-            port = columns.Integer()
-            username = columns.String()
-            password = columns.String()
-            database = columns.String()
+        app = clearskies.contexts.WsgiRef(
+            my_endpoint,
+            bindings={
+                "secrets": clearskies.secrets.Akeyless(
+                    access_id="p-abc123",      # must match ^p-[0-9a-zA-Z]+$
+                    access_type="aws_iam",     # "aws_iam", "saml", or "jwt"
+                    # jwt_env_key="AKEYLESS_JWT",  # required for access_type="jwt"
+                ),
+            },
+        )
         ```
 
-        ## Akeyless Integration
+        ## Reading Secrets
 
-        Using clearskies-akeyless:
+        Callables receive the manager through an argument named `secrets`; classes that
+        extend `clearskies.di.InjectableProperties` (models, endpoints, your own services)
+        use `inject.Secrets()`:
 
         ```python
         import clearskies
-        import clearskies_akeyless_custom_producer
-        from clearskies import columns
+        from clearskies.di import inject
 
-        class ServiceCredential(clearskies.Model):
-            id_column_name = "id"
-            backend = clearskies_akeyless_custom_producer.backends.AkeylessBackend(
-                secret_path="/credentials/services/",
-            )
+        def handler(secrets):
+            return {"configured": bool(secrets.get("/path/to/api-key"))}
 
-            id = columns.String()
-            service_name = columns.String()
-            client_id = columns.String()
-            client_secret = columns.String()
+        class ServiceClient(clearskies.di.InjectableProperties):
+            secrets = inject.Secrets()
+
+            def api_key(self) -> str:
+                return self.secrets.get("/path/to/api-key")
         ```
 
-        ## Use Cases
-
-        ### Managing API Keys
+        `Secrets.get()` signature:
 
         ```python
-        class ExternalApiKey(clearskies.Model):
-            id_column_name = "id"
-            backend = clearskies.backends.SecretsBackend(
-                secret_prefix="external-apis/",
-            )
-
-            id = columns.String()
-            provider = columns.String()  # e.g., "stripe", "twilio"
-            environment = columns.Select(["sandbox", "production"])
-            api_key = columns.String()
-            webhook_secret = columns.String()
-            created_at = columns.Created()
-
-        # Create a new API key record
-        api_keys = ExternalApiKey()
-        api_keys.create({
-            "id": "stripe-prod",
-            "provider": "stripe",
-            "environment": "production",
-            "api_key": "sk_live_...",
-            "webhook_secret": "whsec_...",
-        })
-
-        # Retrieve API key
-        stripe_key = api_keys.find("id=stripe-prod")
-        print(stripe_key.api_key)
+        get(path, silent_if_not_found=False, refresh=False, json_path=None, kind=None)
         ```
 
-        ### Managing Database Credentials
+        - `silent_if_not_found` – return an empty value instead of raising
+        - `refresh` – bypass `cache_storage` and fetch from the manager
+        - `json_path` – parse the secret as JSON and return a field (dot notation, e.g.
+          `"credentials.api_key"`). Renamed from `json_attribute` in 2.1.8.
+        - `kind` – `"static_secret"`, `"dynamic_secret"`, or `"rotated_secret"`
+
+        Other methods: `create`, `update`, `upsert`, `delete`, `list_secrets`, `list_sub_folders`.
+
+        ## Akeyless Specifics
+
+        - Kind resolution: explicit `kind=` → `describe_secret` if `auto_guess_type=True` →
+          `static_secret`. Passing `kind=` skips the extra `describe_secret` API call.
+        - Dynamic/rotated secrets accept `args={...}` for producer arguments.
+        - Optional caching: `cache_storage=clearskies.secrets.cache_storage.MemoryCache(default_ttl=300)`
+          (or a `SecretCache` subclass; clearskies-aws provides `ParameterStoreCache`).
+        - Auth tokens are cached and renewed `token_refresh_buffer` seconds (default 300) before expiry.
 
         ```python
-        class DatabaseConfig(clearskies.Model):
-            id_column_name = "id"
-            backend = clearskies.backends.SecretsBackend(
-                secret_prefix="databases/",
-            )
-
-            id = columns.String()
-            name = columns.String()
-            engine = columns.Select(["mysql", "postgresql", "mongodb"])
-            host = columns.String()
-            port = columns.Integer()
-            username = columns.String()
-            password = columns.String()
-            database = columns.String()
-            ssl_enabled = columns.Boolean(default=True)
-
-            def get_connection_string(self) -> str:
-                if self.engine == "mysql":
-                    return f"mysql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
-                elif self.engine == "postgresql":
-                    return f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
-                else:
-                    raise ValueError(f"Unsupported engine: {self.engine}")
+        password = secrets.get("/path/to/db-credentials", kind="dynamic_secret", json_path="password")
         ```
 
-        ### Rotating Credentials
+        ## SecretBearer Authentication
+
+        `clearskies.authentication.SecretBearer` reads its key from the `secrets` dependency when
+        `secret_key` is set (or from an environment variable with `environment_key`). Since 2.1.8–2.1.10:
+
+        - `secret_kind` – `"static_secret"`, `"dynamic_secret"`, or `"rotated_secret"` (validated by
+          `clearskies.configs.SecretKind`); forwarded as `kind=`
+        - `refresh=True` – always forward `refresh=True` to `secrets.get()`
+        - `json_path` – extract one field from a JSON secret
+        - `headers(retry_auth=True)` – clear the cached key and re-fetch once (e.g. after a 401)
+
+        These options only apply with `secret_key`. `alternate_secret_key` (for rotation) uses
+        `refresh` and `json_path` but not `secret_kind`.
 
         ```python
-        class RotatableCredential(clearskies.Model):
-            id_column_name = "id"
-            backend = clearskies.backends.SecretsBackend(
-                secret_prefix="rotating-credentials/",
-            )
-
-            id = columns.String()
-            current_key = columns.String()
-            previous_key = columns.String()
-            rotated_at = columns.Datetime()
-
-            def rotate(self, new_key: str):
-                \"\"\"Rotate to a new key while keeping the previous one.\"\"\"
-                self.save({
-                    "previous_key": self.current_key,
-                    "current_key": new_key,
-                    "rotated_at": datetime.utcnow(),
-                })
-
-            def validate_key(self, key: str) -> bool:
-                \"\"\"Check if a key is valid (current or previous).\"\"\"
-                return key in [self.current_key, self.previous_key]
+        authentication = clearskies.authentication.SecretBearer(
+            secret_key="/path/to/service-token",
+            secret_kind="dynamic_secret",
+            json_path="credentials.token",
+            refresh=True,
+            header_prefix="Bearer ",
+        )
         ```
 
-        ## KMS Encryption
+        ## Custom Managers and Testing
 
-        For additional security, enable KMS encryption:
+        Subclass `clearskies.secrets.Secrets` and bind an instance as `secrets`. If it is used
+        with `SecretBearer(secret_key=...)`, its `get()` must accept `refresh`, `json_path`, and
+        `kind` keyword arguments, because `SecretBearer` always passes them.
 
-        ```python
-        import clearskies_aws
-
-        class EncryptedCredential(clearskies.Model):
-            id_column_name = "id"
-            backend = clearskies_aws.backends.SecretsManagerBackend(
-                secret_prefix="encrypted-credentials/",
-                kms_key_id="arn:aws:kms:us-east-1:123456789:key/12345678-1234-1234-1234-123456789012",
-            )
-
-            id = columns.String()
-            data = columns.Json()
-        ```
+        Note: in clearskies-aws 2.1.2, `SecretsManager.get()` and `ParameterStore.get()` do not
+        accept those arguments, so combining them with `SecretBearer(secret_key=...)` raises
+        `TypeError`. Call their `get()` directly, or wrap them in a subclass that accepts the extra
+        keyword arguments.
 
         ## Best Practices
 
-        1. **Use meaningful prefixes** – Organize secrets by type/environment
-        2. **Implement rotation** – Regularly rotate sensitive credentials
-        3. **Limit access** – Use IAM policies to restrict who can read secrets
-        4. **Audit access** – Enable logging for secret access
-        5. **Don't store in code** – Never hardcode secrets
-        6. **Use separate secrets per environment** – Don't share between dev/prod
-        7. **Encrypt at rest** – Use KMS encryption for sensitive data
-        8. **Version secrets** – Track changes to credentials
-
-        ## Limitations
-
-        - Query performance is slower than databases
-        - Limited query capabilities (no complex WHERE clauses)
-        - Cost considerations for high-volume access
-        - Rate limits on secrets manager APIs
-        - Not suitable for high-frequency read/write operations
+        1. **Never hardcode or log secret values**
+        2. **Inject `secrets`** instead of creating clients inside your code
+        3. **Pass `kind=`/`secret_kind`** for Akeyless dynamic or rotated secrets to avoid extra API calls
+        4. **Use `alternate_secret_key`** to rotate inbound API keys without downtime
+        5. **Use separate secret paths per environment**
     """),
 }

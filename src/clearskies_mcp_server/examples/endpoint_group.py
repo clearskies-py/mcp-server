@@ -50,7 +50,7 @@ def example_endpoint_group() -> str:
 
         def publish_post(posts: Post, routing_data: dict, input_output):
             post = posts.find(f"id={routing_data['id']}")
-            if not post.exists:
+            if not post:
                 return input_output.respond_json(
                     {"status": "client_error", "error": "Post not found", "data": [], "pagination": {}, "input_errors": {}},
                     404,

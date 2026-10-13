@@ -224,7 +224,7 @@ DEVEX_CONCEPTS = {
         user = users.find("id=123")
 
         # Check if record exists
-        print(f"Exists: {user.exists}")
+        print(f"Exists: {bool(user)}")
 
         # Check model data
         print(f"Data: {user.__data__}")
@@ -373,7 +373,7 @@ DEVEX_CONCEPTS = {
 
         ```python
         # ✅ Organize related endpoints
-        api = clearskies.endpoints.EndpointGroup(
+        api = clearskies.EndpointGroup(
             url="api/v1",
             endpoints=[
                 clearskies.endpoints.RestfulApi(url="users", model_class=User),
@@ -392,13 +392,13 @@ DEVEX_CONCEPTS = {
             user_id = input_output.get_query_parameter("user_id")
 
             if not user_id:
-                return input_output.input_errors({"user_id": "Required"})
+                raise clearskies.exceptions.InputErrors({"user_id": "Required"})
 
             user = users.find(f"id={user_id}")
-            if not user.exists:
-                return input_output.error("User not found", 404)
+            if not user:
+                raise clearskies.exceptions.NotFound("User not found")
 
-            return input_output.success({"user": user.to_dict()})
+            return {"user": user.to_dict()}
         ```
 
         ### Validate Early
@@ -416,12 +416,12 @@ DEVEX_CONCEPTS = {
                 errors["quantity"] = "Required"
 
             if errors:
-                return input_output.input_errors(errors)
+                raise clearskies.exceptions.InputErrors(errors)
 
             # Then process
             product = products.find(f"id={body['product_id']}")
-            if not product.exists:
-                return input_output.error("Product not found", 404)
+            if not product:
+                raise clearskies.exceptions.NotFound("Product not found")
 
             # Create order...
         ```
@@ -467,7 +467,7 @@ DEVEX_CONCEPTS = {
         endpoint = clearskies.endpoints.List(
             model_class=User,
             default_limit=20,
-            max_limit=100,
+            maximum_limit=100,
         )
         ```
 
@@ -551,194 +551,77 @@ DEVEX_CONCEPTS = {
             body = input_output.get_body()
             user_id = authorization_data.get("user_id")
 
-            try:
-                order = order_service.create_order(user_id, body["items"])
-                return input_output.success({"order_id": order.id})
-            except ValidationError as e:
-                return input_output.input_errors(e.errors)
+            # exceptions.InputErrors raised by the service become an input_errors response
+            order = order_service.create_order(user_id, body["items"])
+            return {"order_id": order.id}
         ```
     """),
     "exceptions": textwrap.dedent("""\
         # Exception Hierarchy in clearskies
 
-        Understanding clearskies exceptions helps you handle errors appropriately
-        and provide meaningful feedback to users.
+        clearskies defines a small set of exceptions in `clearskies.exceptions`.
+        Raise them from your code and the endpoint turns them into HTTP responses.
 
-        ## Base Exceptions
+        **There is no common base class**: every one subclasses plain `Exception`.
 
-        ### clearskies.ClearskiesException
+        ## Available Exceptions
 
-        Base exception for all clearskies errors:
+        | Exception | Raise it when | Endpoint response |
+        |-----------|---------------|-------------------|
+        | `ClientError` | The request is bad | 400, `status: "client_error"`, `error: str(e)` |
+        | `InputErrors(errors)` | Fields are invalid | **200**, `status: "input_errors"`, `input_errors: errors` |
+        | `Authentication` | The caller is not authenticated | 401, `status: "client_error"` |
+        | `Authorization` | The caller may not do this | 403, `status: "client_error"` |
+        | `NotFound` | A record or resource is missing | 404, `status: "client_error"` |
+        | `MovedPermanently(location)` | The resource moved | 302, `status: "redirect"` |
+        | `MovedTemporarily(location)` | The resource moved for now | 307, `status: "redirect"` |
+        | `MissingDependency` | (Raised by the DI container) | Not caught: propagates |
+
+        Notes:
+
+        - `InputErrors` takes a dict of `{field_name: message}`, stored on `e.errors`.
+        - Endpoints catch `ClientError` and `InputErrors` only around request handling;
+          the other five are also caught during the authentication/authorization step.
+        - In 2.1.14 the redirect response body does not include the location, and
+          no `Location` header is set.
+        - `MissingDependency` is raised when the DI container cannot build a
+          requested name (no class, binding, or dependency is configured).
+        - Contexts also catch everything above except `InputErrors` and
+          `MissingDependency`, with plain-text responses and the same status codes.
+
+        ## Raising Exceptions in Endpoints
 
         ```python
-        try:
-            # clearskies operation
-            pass
-        except clearskies.ClearskiesException as e:
-            # Catch any clearskies error
-            print(f"clearskies error: {e}")
+        from clearskies import exceptions
+
+        def create_user(request_data, users):
+            if not request_data.get("email"):
+                raise exceptions.InputErrors({"email": "Email is required"})
+
+            if users.find(f"email={request_data['email']}"):
+                raise exceptions.ClientError("A user with that email already exists")
+
+            user = users.create(request_data)
+            return {"id": user.id}
+
+        def get_user(routing_data, users):
+            user = users.find(f"id={routing_data['id']}")
+            if not user:
+                raise exceptions.NotFound("User not found")
+            return {"id": user.id, "email": user.email}
         ```
 
-        ## Validation Exceptions
-
-        ### ValidationError
-
-        Raised when data validation fails:
+        ## Catching Exceptions in Your Own Code
 
         ```python
-        from clearskies.exceptions import ValidationError
-
-        try:
-            user = users.create({"email": "invalid"})
-        except ValidationError as e:
-            print(f"Validation failed: {e.errors}")
-            # e.errors = {"email": "Invalid email format"}
-        ```
-
-        ### InputError
-
-        Raised for invalid input data:
-
-        ```python
-        from clearskies.exceptions import InputError
-
-        try:
-            # Process input
-            pass
-        except InputError as e:
-            print(f"Input error: {e.message}")
-            print(f"Field: {e.field}")
-        ```
-
-        ## Backend Exceptions
-
-        ### BackendException
-
-        Base exception for backend errors:
-
-        ```python
-        from clearskies.exceptions import BackendException
-
-        try:
-            users.create({"name": "Alice"})
-        except BackendException as e:
-            print(f"Backend error: {e}")
-        ```
-
-        ### RecordNotFound
-
-        Raised when a required record doesn't exist:
-
-        ```python
-        from clearskies.exceptions import RecordNotFound
+        from clearskies import exceptions
 
         try:
-            user = users.find_or_fail("id=nonexistent")
-        except RecordNotFound as e:
-            print(f"Record not found: {e}")
-        ```
-
-        ### DuplicateRecord
-
-        Raised for unique constraint violations:
-
-        ```python
-        from clearskies.exceptions import DuplicateRecord
-
-        try:
-            users.create({"email": "existing@example.com"})
-        except DuplicateRecord as e:
-            print(f"Duplicate: {e}")
-        ```
-
-        ## Authentication Exceptions
-
-        ### AuthenticationError
-
-        Raised when authentication fails:
-
-        ```python
-        from clearskies.exceptions import AuthenticationError
-
-        try:
-            # Authenticate request
-            pass
-        except AuthenticationError as e:
-            print(f"Auth failed: {e}")
-            # Return 401 response
-        ```
-
-        ### AuthorizationError
-
-        Raised when authorization fails:
-
-        ```python
-        from clearskies.exceptions import AuthorizationError
-
-        try:
-            # Check permissions
-            pass
-        except AuthorizationError as e:
-            print(f"Not authorized: {e}")
-            # Return 403 response
-        ```
-
-        ## Configuration Exceptions
-
-        ### ConfigurationError
-
-        Raised for configuration issues:
-
-        ```python
-        from clearskies.exceptions import ConfigurationError
-
-        try:
-            # Load configuration
-            pass
-        except ConfigurationError as e:
-            print(f"Config error: {e}")
-        ```
-
-        ## Handling Exceptions in Endpoints
-
-        ### Callable Endpoints
-
-        ```python
-        def my_endpoint(input_output, users):
-            try:
-                user = users.create(input_output.get_body())
-                return input_output.success({"user_id": user.id})
-
-            except ValidationError as e:
-                return input_output.input_errors(e.errors)
-
-            except DuplicateRecord:
-                return input_output.input_errors({
-                    "email": "Email already exists"
-                })
-
-            except BackendException as e:
-                # Log the error
-                logging.error(f"Database error: {e}")
-                return input_output.error("Internal server error", 500)
-        ```
-
-        ### Global Error Handler
-
-        ```python
-        def error_handler(exception, input_output):
-            if isinstance(exception, ValidationError):
-                return input_output.input_errors(exception.errors)
-
-            if isinstance(exception, AuthenticationError):
-                return input_output.error("Unauthorized", 401)
-
-            if isinstance(exception, AuthorizationError):
-                return input_output.error("Forbidden", 403)
-
-            # Log unexpected errors
-            logging.exception("Unexpected error")
-            return input_output.error("Internal server error", 500)
+            user_service.deactivate(user_id)
+        except exceptions.NotFound:
+            ...  # record already gone
+        except (exceptions.Authentication, exceptions.Authorization):
+            ...  # auth problem
         ```
 
         ## Database-Specific Exceptions
@@ -924,10 +807,10 @@ DEVEX_CONCEPTS = {
             roles = authorization_data.get("roles", [])
 
             if "admin" not in roles:
-                return input_output.error("Forbidden", 403)
+                raise clearskies.exceptions.Authorization("Forbidden")
 
             # Admin-only logic
-            return input_output.success({"admin": True})
+            return {"admin": True}
         ```
 
         ## Data Flow Diagram
@@ -983,7 +866,7 @@ DEVEX_CONCEPTS = {
             ):
                 tenant_id = authorization_data.get("tenant_id")
                 if not tenant_id:
-                    raise AuthorizationError("No tenant context")
+                    raise clearskies.exceptions.Authorization("No tenant context")
                 return model.where(f"tenant_id={tenant_id}")
 
         class User(TenantModel):
@@ -1007,13 +890,8 @@ DEVEX_CONCEPTS = {
 
         ```python
         # 1. Define authentication
-        auth = clearskies.authentication.JWKS(
+        auth = clearskies.authentication.Jwks(
             jwks_url="https://auth.example.com/.well-known/jwks.json",
-            claims_to_authorization_data={
-                "sub": "user_id",
-                "tenant": "tenant_id",
-                "roles": "roles",
-            },
         )
 
         # 2. Define model with authorization

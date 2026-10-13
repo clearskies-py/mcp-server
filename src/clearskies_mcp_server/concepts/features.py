@@ -36,16 +36,17 @@ FEATURES_CONCEPTS = {
     "migrations": textwrap.dedent("""\
         # clearskies Migrations (Mygrations)
 
-        clearskies provides database migration support through the Mygrations endpoint, which
-        integrates with the mygrations library for schema evolution.
+        The `clearskies.endpoints.Mygrations` endpoint runs the
+        [mygrations](https://github.com/cmancone/mygrations) library.
 
         ## Overview
 
-        Mygrations is a database migration tool that:
-        - Automatically detects schema changes from your model definitions
-        - Generates migration SQL based on differences
-        - Supports MySQL/MariaDB databases
-        - Can run in "check" mode to validate without applying changes
+        Mygrations is a stateless migration tool:
+        - You write the desired schema as SQL `CREATE TABLE` statements (files or strings)
+        - It compares that SQL with the live database and calculates the changes
+        - You review with `plan` and apply with `apply` (like IaC)
+        - It does **not** read clearskies models; keep models and SQL in sync by hand
+        - Supports MySQL/MariaDB
 
         ## Installation
 
@@ -55,138 +56,72 @@ FEATURES_CONCEPTS = {
 
         ## Basic Setup
 
+        ```sql
+        -- database/users.sql
+        CREATE TABLE `users` (
+          `id` CHAR(36) NOT NULL,
+          `name` VARCHAR(255) NOT NULL DEFAULT '',
+          `email` VARCHAR(255) NOT NULL DEFAULT '',
+          PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ```
+
         ```python
+        # mygrate.py
         import clearskies
-        from clearskies import columns
 
-        class User(clearskies.Model):
-            id_column_name = "id"
-            backend = clearskies.backends.CursorBackend()
-
-            id = columns.Uuid()
-            name = columns.String(max_length=255)
-            email = columns.Email(max_length=255)
-            created_at = columns.Created()
-            updated_at = columns.Updated()
-
-        # Create a migrations endpoint
-        migrations_endpoint = clearskies.endpoints.Mygrations(
-            models=[User],
-            connection_string_environment_key="DATABASE_URL",
+        cli = clearskies.contexts.Cli(
+            clearskies.endpoints.Mygrations(
+                allow_input=True,
+                sql=["./database/"],
+            )
         )
-
-        # Run as CLI
-        cli = clearskies.contexts.Cli(migrations_endpoint)
         cli()
         ```
+
+        The database connection comes from the default `cursor` binding, which reads
+        `DATABASE_HOST`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `DATABASE_NAME` and
+        (optionally) `DATABASE_PORT` from the environment.
 
         ## Running Migrations
 
         ```bash
-        # Check what migrations would be applied (dry run)
-        python app.py --check
-
-        # Apply migrations
-        python app.py --apply
-
-        # Show current schema status
-        python app.py --status
+        ./mygrate.py --command=check   # validate the SQL files
+        ./mygrate.py --command=plan    # show the changes (dry run)
+        ./mygrate.py --command=apply   # apply the changes
         ```
 
         ## Mygrations Endpoint Configuration
 
         | Parameter | Type | Description |
         |-----------|------|-------------|
-        | `models` | list | List of model classes to include in migrations |
-        | `connection_string_environment_key` | str | Environment variable containing database connection string |
-        | `cursor_backend_class` | class | Custom cursor backend class (optional) |
+        | `sql` | list[str] | SQL strings, `.sql` file paths, or directories of `.sql` files (default `["./database"]`) |
+        | `command` | str | `version` (default), `check`, `plan`, `plan_export`, or `apply` |
+        | `allow_input` | bool | Allow `command`/`sql` to come from request data, e.g. `--command=plan` (default `False`) |
+        | `cursor` | Cursor | Cursor to use, e.g. `clearskies.cursors.from_environment.Mysql()` (optional) |
+        | `cursor_dependency_name` | str | DI name to build the cursor from when `cursor` is not given (default `"cursor"`) |
+        | `include_module_migrations` | bool | Also run SQL from `clearskies.di.AdditionalMygrationsAutoImport` subclasses in loaded modules (default `False`) |
+        | `module_migrations` | list[str] | Allow-list of those subclass names; empty means all |
+        | `url` | str | URL to mount the endpoint at |
 
-        ## Schema Evolution Strategies
+        ## Schema Changes
 
-        ### Adding Columns
-
-        Simply add a new column to your model:
-
-        ```python
-        class User(clearskies.Model):
-            # ... existing columns ...
-            phone = columns.Phone(max_length=20)  # New column
-        ```
-
-        Run migrations to apply the change.
-
-        ### Removing Columns
-
-        Remove the column from your model definition. Mygrations will detect the removal
-        and generate the appropriate DROP COLUMN statement.
-
-        **Warning:** Removing columns is destructive. Always backup data before applying.
-
-        ### Modifying Columns
-
-        Change the column definition (e.g., max_length, type):
-
-        ```python
-        # Before
-        name = columns.String(max_length=100)
-
-        # After
-        name = columns.String(max_length=255)
-        ```
-
-        ### Adding Indexes
-
-        Use the `index` parameter on columns:
-
-        ```python
-        email = columns.Email(max_length=255, index=True)
-        ```
-
-        ### Adding Unique Constraints
-
-        Use validators or column parameters:
-
-        ```python
-        from clearskies.validators import Unique
-
-        email = columns.Email(validators=[Unique()])
-        ```
+        Edit the `CREATE TABLE` file (and the matching model column), run `plan`, review,
+        then `apply`. Removing a column or index from the SQL makes mygrations drop it.
 
         ## Best Practices
 
-        1. **Always run --check first** – Review changes before applying
+        1. **Always run `plan` first** – Review changes before applying
         2. **Backup before destructive changes** – Column removals, type changes
-        3. **Use version control** – Track model changes alongside migrations
-        4. **Test migrations in staging** – Before applying to production
-        5. **Keep models and database in sync** – Don't manually modify the database
-
-        ## Integration with CI/CD
-
-        ```yaml
-        # Example GitLab CI job
-        migrate:
-          stage: deploy
-          script:
-            - python app.py --check  # Validate first
-            - python app.py --apply  # Apply if check passes
-          only:
-            - main
-        ```
-
-        ## Rollback Strategies
-
-        Mygrations doesn't provide automatic rollback. For rollback:
-
-        1. **Revert code changes** – Return to previous model definitions
-        2. **Run migrations again** – Mygrations will generate reverse changes
-        3. **Manual intervention** – For data migrations, manual SQL may be needed
+        3. **Commit SQL files with model changes** – They must stay in sync
+        4. **Test in staging** – Before applying to production
 
         ## Limitations
 
-        - Currently supports MySQL/MariaDB only
-        - No automatic data migrations (schema only)
-        - No built-in rollback mechanism
-        - Requires mygrations library to be installed separately
+        - MySQL/MariaDB only
+        - Schema only, no data migrations
+        - No rollback; revert the SQL files and re-apply instead
+        - Requires the mygrations library to be installed separately
     """),
     "configuration": textwrap.dedent("""\
         # Configuration Management in clearskies
@@ -229,11 +164,10 @@ FEATURES_CONCEPTS = {
         ### Environment Variables in Backends
 
         ```python
-        # Database connection string from environment
+        # The default `cursor` reads DATABASE_HOST, DATABASE_USERNAME,
+        # DATABASE_PASSWORD, DATABASE_NAME (and optional DATABASE_PORT) from the environment
         class User(clearskies.Model):
-            backend = clearskies.backends.CursorBackend(
-                connection_string_environment_key="DATABASE_URL",
-            )
+            backend = clearskies.backends.CursorBackend()
         ```
 
         ## Dependency Injection Bindings

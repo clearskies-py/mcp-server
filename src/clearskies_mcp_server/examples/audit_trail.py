@@ -185,7 +185,7 @@ def example_audit_trail() -> str:
         def get_document_audit(document_id: str, documents: Document):
             """Get audit history for a specific document."""
             doc = documents.find(f"id={document_id}")
-            if not doc.exists:
+            if not doc:
                 return {"error": "Document not found"}, 404
 
             audit_history = []
@@ -203,7 +203,7 @@ def example_audit_trail() -> str:
             }
 
         # Endpoint group with CRUD and audit endpoint
-        endpoints = clearskies.endpoints.EndpointGroup(
+        endpoints = clearskies.EndpointGroup(
             endpoints=[
                 clearskies.endpoints.RestfulApi(
                     url="documents",
@@ -214,7 +214,7 @@ def example_audit_trail() -> str:
                 ),
                 clearskies.endpoints.Callable(
                     url="documents/:document_id/audit",
-                    handler=get_document_audit,
+                    to_call=get_document_audit,
                 ),
             ],
         )

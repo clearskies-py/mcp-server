@@ -593,7 +593,7 @@ class MyCallable:
         return {"users": self.users.all()}
 
 endpoint = clearskies.endpoints.Callable(
-    callable=MyCallable,
+    to_call=MyCallable,
 )
 ```
 
@@ -639,7 +639,7 @@ app = Application(
 **v2:**
 ```python
 cli = clearskies.contexts.Cli(
-    clearskies.endpoints.Callable(callable=my_function),
+    clearskies.endpoints.Callable(to_call=my_function),
 )
 ```
 
@@ -700,17 +700,8 @@ app = Application(
 
 **v2:**
 ```python
-routing = clearskies.endpoints.SimpleRouting(
-    routes=[
-        {"path": "/users", "endpoint": users_endpoint},
-        {"path": "/posts", "endpoint": posts_endpoint},
-    ],
-)
-
-# Or use EndpointGroup
-from clearskies.endpoints import EndpointGroup
-
-group = EndpointGroup(
+# SimpleRouting is replaced by EndpointGroup
+group = clearskies.EndpointGroup(
     url="/api",
     endpoints=[
         clearskies.endpoints.RestfulApi(url="users", model_class=User),

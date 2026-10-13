@@ -133,7 +133,7 @@ BACKEND_CONCEPTS = {
 
             # Verify
             result = users.find(f"id={user_id}")
-            assert result.exists is False
+            assert not result
         ```
 
         ## Clearing Data Between Tests
@@ -240,11 +240,11 @@ BACKEND_CONCEPTS = {
         ### Via Environment Variable
 
         ```python
+        # The default `cursor` reads DATABASE_HOST, DATABASE_USERNAME,
+        # DATABASE_PASSWORD, DATABASE_NAME (and optional DATABASE_PORT) from the environment
         class User(clearskies.Model):
             id_column_name = "id"
-            backend = clearskies.backends.CursorBackend(
-                connection_string_environment_key="DATABASE_URL",
-            )
+            backend = clearskies.backends.CursorBackend()
             # ...
         ```
 

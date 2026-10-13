@@ -15,7 +15,8 @@ def example_error_handling() -> str:
         ```python
         import clearskies
         from clearskies import columns
-        from clearskies.validators import Required, Unique, Validator
+        from clearskies import Validator
+        from clearskies.validators import Required, Unique
         import logging
 
         logger = logging.getLogger(__name__)
@@ -93,7 +94,7 @@ def example_error_handling() -> str:
 
                 # Find product
                 product = products.find(f"id={product_id}")
-                if not product.exists:
+                if not product:
                     return input_output.respond_json(
                         {
                             "status": "client_error",

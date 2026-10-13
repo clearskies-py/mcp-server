@@ -354,7 +354,7 @@ REFERENCE_CONCEPTS = {
             default_sort_column_name="name",     # Default sort column
             default_sort_direction="asc",        # "asc" or "desc"
             default_limit=20,                    # Default page size
-            max_limit=100,                       # Maximum page size
+            maximum_limit=100,                   # Maximum page size
             id_column_name="id",                 # ID column for routes
             authentication=None,                 # Authentication handler
         )
@@ -381,7 +381,7 @@ REFERENCE_CONCEPTS = {
             default_sort_column_name="name",
             default_sort_direction="asc",
             default_limit=20,
-            max_limit=100,
+            maximum_limit=100,
             authentication=None,
         )
         ```
@@ -465,12 +465,12 @@ REFERENCE_CONCEPTS = {
         def my_handler(input_output, users, authorization_data):
             body = input_output.get_body()
             # Custom logic
-            return input_output.success({"result": "ok"})
+            return {"result": "ok"}
 
         clearskies.endpoints.Callable(
-            handler=my_handler,
+            to_call=my_handler,
             url="custom",
-            methods=["POST"],                    # HTTP methods
+            request_methods=["POST"],                  # HTTP methods
             authentication=None,
         )
         ```
@@ -483,7 +483,7 @@ REFERENCE_CONCEPTS = {
         Group multiple endpoints:
 
         ```python
-        clearskies.endpoints.EndpointGroup(
+        clearskies.EndpointGroup(
             url="api/v1",                        # Base URL for group
             endpoints=[
                 clearskies.endpoints.RestfulApi(url="users", model_class=User),
@@ -505,8 +505,8 @@ REFERENCE_CONCEPTS = {
         ```python
         clearskies.endpoints.Mygrations(
             url="migrate",
-            models=[User, Order, Product],       # Models to migrate
-            authentication=None,
+            sql=["./database/"],                 # CREATE TABLE files/dirs (source of truth)
+            command="plan",                      # version, check, plan, plan_export, apply
         )
         ```
 
@@ -623,7 +623,7 @@ REFERENCE_CONCEPTS = {
         endpoint = clearskies.endpoints.List(
             model_class=User,
             default_limit=20,    # Reasonable default
-            max_limit=100,       # Prevent abuse
+            maximum_limit=100,   # Prevent abuse
         )
         ```
 
@@ -735,7 +735,7 @@ REFERENCE_CONCEPTS = {
             duration = (time.time() - start) * 1000
             logging.info(f"Endpoint took {duration:.2f}ms")
 
-            return input_output.success({"users": list(result)})
+            return {"users": list(result)}
         ```
 
         ## Checklist
@@ -827,7 +827,7 @@ REFERENCE_CONCEPTS = {
 
             def pre_save(self, data):
                 user_id = self._get_current_user_id()
-                if not self.exists:
+                if not self:
                     data["created_by"] = user_id
                 data["updated_by"] = user_id
                 return data
@@ -869,7 +869,7 @@ REFERENCE_CONCEPTS = {
             version = columns.Integer(default=1)
 
             def pre_save(self, data):
-                if self.exists:
+                if self:
                     data["version"] = self.version + 1
                 return data
 
@@ -927,16 +927,16 @@ REFERENCE_CONCEPTS = {
             search = input_output.get_query_parameter("q", "")
 
             if not search:
-                return input_output.success({"users": []})
+                return {"users": []}
 
             # Search multiple fields
             query = users.where(
                 f"name LIKE '%{search}%' OR email LIKE '%{search}%'"
             ).limit(20)
 
-            return input_output.success({
+            return {
                 "users": [u.to_dict() for u in query]
-            })
+            }
         ```
 
         ## Bulk Operations
@@ -948,7 +948,7 @@ REFERENCE_CONCEPTS = {
             new_status = body.get("status")
 
             if not order_ids or not new_status:
-                return input_output.input_errors({
+                raise clearskies.exceptions.InputErrors({
                     "order_ids": "Required",
                     "status": "Required",
                 })
@@ -956,11 +956,11 @@ REFERENCE_CONCEPTS = {
             updated = 0
             for order_id in order_ids:
                 order = orders.find(f"id={order_id}")
-                if order.exists:
+                if order:
                     order.save({"status": new_status})
                     updated += 1
 
-            return input_output.success({"updated": updated})
+            return {"updated": updated}
         ```
 
         ## Rate Limiting
@@ -994,10 +994,10 @@ REFERENCE_CONCEPTS = {
             client_id = authorization_data.get("user_id", "anonymous")
 
             if not rate_limiter.is_allowed(client_id):
-                return input_output.error("Rate limit exceeded", 429)
+                raise clearskies.exceptions.ClientError("Rate limit exceeded")
 
             # Your logic here
-            return input_output.success({"message": "OK"})
+            return {"message": "OK"}
         ```
 
         ## Webhook Handler
@@ -1019,7 +1019,7 @@ REFERENCE_CONCEPTS = {
             ).hexdigest()
 
             if not hmac.compare_digest(signature, expected):
-                return input_output.error("Invalid signature", 401)
+                raise clearskies.exceptions.Authentication("Invalid signature")
 
             # Process webhook
             data = input_output.get_body()
@@ -1030,7 +1030,7 @@ REFERENCE_CONCEPTS = {
             elif event_type == "order.updated":
                 handle_order_updated(data)
 
-            return input_output.success({"received": True})
+            return {"received": True}
         ```
 
         ## Caching Pattern
@@ -1064,7 +1064,7 @@ REFERENCE_CONCEPTS = {
                 return cached
 
             user = users.find(f"id={user_id}")
-            if user.exists:
+            if user:
                 cache.set(cache_key, user)
             return user
         ```

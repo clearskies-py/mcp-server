@@ -60,7 +60,7 @@ BASE_CLASS_CONCEPTS = {
 
             def send_notification(self, user_id: str):
                 user = self.users.find(f"id={user_id}")
-                if user.exists:
+                if user:
                     self.email_service.send(user.email, "Hello!")
         ```
 
@@ -917,7 +917,7 @@ BASE_CLASS_CONCEPTS = {
             def handle(self, input_output):
                 # Use config and injected dependencies
                 results = self.model_class.limit(self.max_results)
-                return input_output.success({"data": list(results)})
+                return {"data": list(results)}
         ```
 
         ## Backend

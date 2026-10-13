@@ -44,7 +44,7 @@ def example_testing() -> str:
 
             def pre_save(self, data):
                 # Auto-set status for new users
-                if not self.exists and "status" not in data:
+                if not self and "status" not in data:
                     data["status"] = "pending"
                 return data
 
@@ -123,7 +123,7 @@ def example_testing() -> str:
                 user.delete()
 
                 deleted = self.users.find(f"id={user_id}")
-                assert deleted.exists is False
+                assert not deleted
         ```
 
         ## tests/test_endpoints.py

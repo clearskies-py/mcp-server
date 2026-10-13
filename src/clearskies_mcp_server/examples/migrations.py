@@ -10,11 +10,13 @@ import textwrap
 
 def example_migrations() -> str:
     """Complete example of clearskies database migrations."""
-    return textwrap.dedent('''\
+    return textwrap.dedent("""\
         # clearskies Database Migrations Example
 
-        This example demonstrates how to use the Mygrations endpoint for database
-        schema evolution in clearskies applications.
+        The `Mygrations` endpoint runs the [mygrations](https://github.com/cmancone/mygrations)
+        library. Mygrations is stateless: you describe the desired schema as SQL `CREATE TABLE`
+        statements, and it compares those files with the live database and plans/applies the
+        difference. It does **not** read your clearskies models.
 
         ## Prerequisites
 
@@ -22,299 +24,170 @@ def example_migrations() -> str:
         pip install clear-skies mygrations
         ```
 
-        ## Complete Migration Setup
+        ## Project Layout
+
+        ```
+        my_app/
+        ├── database/
+        │   ├── users.sql
+        │   └── orders.sql
+        ├── models.py
+        └── mygrate.py
+        ```
+
+        ## 1. Schema Files (source of truth for the database)
+
+        ```sql
+        -- database/users.sql
+        CREATE TABLE `users` (
+          `id` CHAR(36) NOT NULL,
+          `name` VARCHAR(255) NOT NULL DEFAULT '',
+          `email` VARCHAR(255) NOT NULL DEFAULT '',
+          `created_at` DATETIME NULL DEFAULT NULL,
+          `updated_at` DATETIME NULL DEFAULT NULL,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `users_email` (`email`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ```
+
+        ```sql
+        -- database/orders.sql
+        CREATE TABLE `orders` (
+          `id` CHAR(36) NOT NULL,
+          `user_id` CHAR(36) NOT NULL,
+          `total` DECIMAL(10,2) NOT NULL DEFAULT 0,
+          `status` VARCHAR(50) NOT NULL DEFAULT 'pending',
+          `created_at` DATETIME NULL DEFAULT NULL,
+          PRIMARY KEY (`id`),
+          KEY `orders_user_id` (`user_id`),
+          CONSTRAINT `orders_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ```
+
+        ## 2. Matching Models
+
+        The models must be kept in sync with the SQL by hand: one column per field,
+        with matching names and compatible types.
 
         ```python
-        """
-        Database migrations example with clearskies and Mygrations.
-
-        This script demonstrates:
-        - Setting up models with CursorBackend
-        - Configuring the Mygrations endpoint
-        - Running migrations via CLI
-        """
-        import os
+        # models.py
         import clearskies
         from clearskies import columns
-        from clearskies.validators import Required, Unique
 
-
-        # =============================================================================
-        # MODEL DEFINITIONS
-        # =============================================================================
 
         class User(clearskies.Model):
-            """User model with common fields."""
             id_column_name = "id"
             backend = clearskies.backends.CursorBackend()
 
             id = columns.Uuid()
-            email = columns.Email(max_length=255, validators=[Required(), Unique()])
-            name = columns.String(max_length=255, validators=[Required()])
-            status = columns.Select(["active", "inactive", "suspended"], default="active")
+            name = columns.String()
+            email = columns.Email()
             created_at = columns.Created()
             updated_at = columns.Updated()
 
 
-        class Post(clearskies.Model):
-            """Blog post model with foreign key to User."""
+        class Order(clearskies.Model):
             id_column_name = "id"
             backend = clearskies.backends.CursorBackend()
 
             id = columns.Uuid()
-            user_id = columns.BelongsToId(parent_model_class=User)
-            title = columns.String(max_length=255, validators=[Required()])
-            content = columns.String()
-            status = columns.Select(["draft", "published", "archived"], default="draft")
-            published_at = columns.Datetime()
+            user_id = columns.BelongsToId(User)
+            total = columns.Float()
+            status = columns.Select(["pending", "paid", "shipped"])
             created_at = columns.Created()
-            updated_at = columns.Updated()
+        ```
 
+        ## 3. Migration Script
 
-        class Comment(clearskies.Model):
-            """Comment model with foreign keys to User and Post."""
-            id_column_name = "id"
-            backend = clearskies.backends.CursorBackend()
+        ```python
+        #!/usr/bin/env python
+        # mygrate.py
+        import clearskies
 
-            id = columns.Uuid()
-            post_id = columns.BelongsToId(parent_model_class=Post)
-            user_id = columns.BelongsToId(parent_model_class=User)
-            content = columns.String(validators=[Required()])
-            created_at = columns.Created()
-
-
-        # =============================================================================
-        # MIGRATIONS ENDPOINT
-        # =============================================================================
-
-        # Create the migrations endpoint with all models
-        migrations = clearskies.endpoints.Mygrations(
-            models=[User, Post, Comment],
-            connection_string_environment_key="DATABASE_URL",
+        cli = clearskies.contexts.Cli(
+            clearskies.endpoints.Mygrations(
+                allow_input=True,       # lets --command / --sql come from the CLI
+                sql=["./database/"],    # SQL strings, .sql files, or directories
+            )
         )
-
-        # Create CLI context for running migrations
-        cli = clearskies.contexts.Cli(migrations)
-
 
         if __name__ == "__main__":
             cli()
         ```
 
-        ## Running Migrations
-
-        ### Check Mode (Dry Run)
-
-        See what changes would be applied without making them:
+        With no `cursor` argument the endpoint uses the default `cursor` dependency,
+        a MySQL cursor configured from environment variables:
 
         ```bash
-        # Set your database connection string
-        export DATABASE_URL="mysql://user:password@localhost/myapp"
-
-        # Check what migrations would be applied
-        python migrations.py --check
+        export DATABASE_HOST=localhost
+        export DATABASE_USERNAME=app
+        export DATABASE_PASSWORD=REPLACE_ME
+        export DATABASE_NAME=myapp
+        export DATABASE_PORT=3306   # optional
         ```
 
-        Example output:
-        ```
-        Checking migrations...
+        You can also pass a cursor explicitly, e.g.
+        `cursor=clearskies.cursors.from_environment.Mysql()`, or name a different
+        DI binding with `cursor_dependency_name="..."`.
 
-        Tables to create:
-          - users
-          - posts
-          - comments
-
-        Columns to add:
-          - users.id (uuid, primary key)
-          - users.email (varchar(255), unique)
-          - users.name (varchar(255))
-          - users.status (enum: active, inactive, suspended)
-          - users.created_at (datetime)
-          - users.updated_at (datetime)
-          ...
-
-        No destructive changes detected.
-        Run with --apply to apply these changes.
-        ```
-
-        ### Apply Mode
-
-        Apply the migrations to the database:
+        ## 4. Running
 
         ```bash
-        python migrations.py --apply
+        ./mygrate.py --command=check   # validate the SQL files
+        ./mygrate.py --command=plan    # show the SQL needed to update the database
+        ./mygrate.py --command=apply   # apply those changes
         ```
 
-        Example output:
+        Allowed commands: `version` (default), `check`, `plan`, `plan_export`, `apply`.
+        Without `allow_input=True`, the command is fixed by the `command=` argument instead.
+
+        ## Changing the Schema
+
+        To add a column, edit both places:
+
+        ```sql
+        -- database/users.sql: add inside CREATE TABLE
+          `phone` VARCHAR(20) NOT NULL DEFAULT '',
         ```
-        Applying migrations...
-
-        Creating table: users
-        Creating table: posts
-        Creating table: comments
-
-        Migrations applied successfully.
-        ```
-
-        ### Status Mode
-
-        Check the current schema status:
-
-        ```bash
-        python migrations.py --status
-        ```
-
-        ## Schema Evolution Examples
-
-        ### Adding a New Column
-
-        Add a `phone` column to the User model:
 
         ```python
-        class User(clearskies.Model):
-            # ... existing columns ...
-            phone = columns.Phone(max_length=20)  # New column
+        # models.py: add to User
+            phone = columns.Phone()
         ```
 
-        Run migrations:
-        ```bash
-        python migrations.py --check   # Review changes
-        python migrations.py --apply   # Apply changes
-        ```
+        Then run `plan`, review the output, and run `apply`. Removing a column from the
+        SQL file makes mygrations drop it, so always review the plan first.
 
-        ### Adding an Index
+        ## Migrations Shipped by Modules
 
-        Add an index to improve query performance:
+        A module can ship its own SQL by subclassing `AdditionalMygrationsAutoImport`.
+        By default the SQL folder is `sql/` next to the file defining the class:
 
         ```python
-        class Post(clearskies.Model):
-            # ... existing columns ...
-            status = columns.Select(
-                ["draft", "published", "archived"],
-                default="draft",
-                index=True,  # Add index
-            )
+        # my_module/migrations.py
+        from clearskies.di import AdditionalMygrationsAutoImport
+
+        class MyModuleMigrations(AdditionalMygrationsAutoImport):
+            pass  # or: sql = ["database"]
         ```
 
-        ### Changing Column Properties
-
-        Increase the max_length of a column:
+        Opt in on the endpoint (modules must be loaded via `add_modules()` / `modules=`):
 
         ```python
-        # Before
-        title = columns.String(max_length=255)
-
-        # After
-        title = columns.String(max_length=500)
-        ```
-
-        ### Adding a New Table
-
-        Simply add a new model class:
-
-        ```python
-        class Tag(clearskies.Model):
-            id_column_name = "id"
-            backend = clearskies.backends.CursorBackend()
-
-            id = columns.Uuid()
-            name = columns.String(max_length=100, validators=[Required(), Unique()])
-            created_at = columns.Created()
-
-        # Update migrations endpoint
-        migrations = clearskies.endpoints.Mygrations(
-            models=[User, Post, Comment, Tag],  # Add Tag
-            connection_string_environment_key="DATABASE_URL",
+        clearskies.endpoints.Mygrations(
+            sql=["./database/"],
+            include_module_migrations=True,
+            module_migrations=["MyModuleMigrations"],  # optional allow-list of class names
         )
         ```
 
-        ## CI/CD Integration
-
-        ### GitLab CI Example
+        ## CI/CD
 
         ```yaml
-        # .gitlab-ci.yml
-        stages:
-          - test
-          - migrate
-          - deploy
-
-        variables:
-          DATABASE_URL: $CI_DATABASE_URL
-
-        check-migrations:
-          stage: test
-          script:
-            - pip install -r requirements.txt
-            - python migrations.py --check
-          only:
-            - merge_requests
-
-        apply-migrations:
-          stage: migrate
-          script:
-            - pip install -r requirements.txt
-            - python migrations.py --apply
-          only:
-            - main
-          when: manual  # Require manual approval
-
-        deploy:
+        migrate:
           stage: deploy
           script:
-            - ./deploy.sh
-          only:
-            - main
-          needs:
-            - apply-migrations
+            - ./mygrate.py --command=plan
+            - ./mygrate.py --command=apply
         ```
-
-        ### GitHub Actions Example
-
-        ```yaml
-        # .github/workflows/migrate.yml
-        name: Database Migrations
-
-        on:
-          push:
-            branches: [main]
-          pull_request:
-            branches: [main]
-
-        jobs:
-          check:
-            runs-on: ubuntu-latest
-            steps:
-              - uses: actions/checkout@v3
-              - uses: actions/setup-python@v4
-                with:
-                  python-version: "3.11"
-              - run: pip install -r requirements.txt
-              - run: python migrations.py --check
-                env:
-                  DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
-          apply:
-            runs-on: ubuntu-latest
-            needs: check
-            if: github.ref == \'refs/heads/main\'
-            steps:
-              - uses: actions/checkout@v3
-              - uses: actions/setup-python@v4
-                with:
-                  python-version: "3.11"
-              - run: pip install -r requirements.txt
-              - run: python migrations.py --apply
-                env:
-                  DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        ```
-
-        ## Best Practices
-
-        1. **Always run --check first** - Review changes before applying
-        2. **Backup before destructive changes** - Column removals, type changes
-        3. **Use version control** - Track model changes in git
-        4. **Test in staging first** - Before applying to production
-        5. **Use manual approval in CI/CD** - For production migrations
-        6. **Document breaking changes** - In commit messages and changelogs
-    ''')
+    """)

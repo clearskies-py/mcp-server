@@ -161,7 +161,7 @@ CORE_CONCEPTS = {
 
             def handle(self, input_output):
                 results = self.model_class.limit(self.max_results)
-                return input_output.success({"data": list(results)})
+                return {"data": list(results)}
         ```
 
         See the `configurable` and `injectable_properties` concepts for more details.
@@ -201,7 +201,6 @@ CORE_CONCEPTS = {
         - **CursorBackend** – SQL databases (MySQL, PostgreSQL) via cursor objects
         - **ApiBackend** – REST API integration (your model becomes an API client)
         - **GraphqlBackend** – GraphQL API integration
-        - **SecretsBackend** – Store data in a secrets manager
 
         ## Example
 

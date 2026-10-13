@@ -384,7 +384,7 @@ mcp.resource(
 mcp.resource(
     "clearskies://docs/secrets-backend",
     name="docs_secrets_backend",
-    description="Documentation about the secrets backend in clearskies.",
+    description="Documentation about secrets in clearskies: the secrets dependency, Akeyless, and SecretBearer.",
 )(docs_secrets_backend)
 
 # Phase 6.1: Backend Foundations
@@ -581,7 +581,7 @@ mcp.resource(
 mcp.resource(
     "clearskies://examples/secrets-backend",
     name="example_secrets_backend",
-    description="Example of using the secrets backend in clearskies.",
+    description="Example of reading secrets and using SecretBearer with a secret manager in clearskies.",
 )(example_secrets_backend)
 
 # Module resources

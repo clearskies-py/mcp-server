@@ -117,8 +117,7 @@ OBSERVABILITY_CONCEPTS = {
 
         cli = clearskies.contexts.Cli(
             clearskies.endpoints.Callable(
-                callable=my_endpoint,
-                input_requirements={"request_data": dict},
+                to_call=my_endpoint,
             )
         )
         ```
@@ -237,12 +236,12 @@ OBSERVABILITY_CONCEPTS = {
             return {"status": "healthy", "checks": {"db": "ok", "cache": "ok"}}
 
         wsgi = clearskies.contexts.WsgiRef(
-            clearskies.endpoints.EndpointGroup(
+            clearskies.EndpointGroup(
                 endpoints=[
                     clearskies.endpoints.HealthCheck(url="health"),
                     clearskies.endpoints.Callable(
                         url="health/detailed",
-                        callable=custom_health_check,
+                        to_call=custom_health_check,
                     ),
                 ]
             )
@@ -366,7 +365,7 @@ OBSERVABILITY_CONCEPTS = {
                 # Query from backend
                 users = cls()
                 user = users.find(f"id={user_id}")
-                if user.exists:
+                if user:
                     user_data = {
                         "id": user.id,
                         "name": user.name,
@@ -515,7 +514,7 @@ OBSERVABILITY_CONCEPTS = {
             # 2. Load from database
             users = User()
             user = users.find(f"id={user_id}")
-            if not user.exists:
+            if not user:
                 return None
 
             # 3. Store in cache

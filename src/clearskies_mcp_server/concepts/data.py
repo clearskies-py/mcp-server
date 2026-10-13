@@ -73,14 +73,19 @@ DATA_CONCEPTS = {
 
         - **Required** – Value must be provided and non-empty
         - **Unique** – Value must be unique across all records
-        - **InTheFuture** – Date/datetime must be in the future
-        - **InThePast** – Date/datetime must be in the past
-        - **Timedelta** – Date/datetime must be within a time range
+        - **MinimumLength(minimum_length)** / **MaximumLength(maximum_length)** – String length bounds
+        - **MinimumValue(minimum_value)** / **MaximumValue(maximum_value)** – Numeric bounds
+        - **InTheFuture** / **InThePast** – Date/datetime must be in the future / past
+        - **InTheFutureAtLeast(timedelta)** / **InTheFutureAtMost(timedelta)** – Future, with a minimum / maximum distance
+        - **InThePastAtLeast(timedelta)** / **InThePastAtMost(timedelta)** – Past, with a minimum / maximum distance
+        - **AfterColumn(other_column_name)** / **BeforeColumn(other_column_name)** – Date must be after / before another column
+        - **Regexp(regexp, include_regexp_in_error=False)** – String must match a regular expression
+          (uses `re.match`, so it is anchored at the start only; end the pattern with `$` for a full match)
 
         ## Usage
 
         ```python
-        from clearskies.validators import Required, Unique
+        from clearskies.validators import Regexp, Required, Unique
 
         class User(clearskies.Model):
             id_column_name = "id"
@@ -89,6 +94,7 @@ DATA_CONCEPTS = {
             id = clearskies.columns.Uuid()
             name = clearskies.columns.String(validators=[Required()])
             email = clearskies.columns.Email(validators=[Required(), Unique()])
+            version = clearskies.columns.String(validators=[Regexp(r"^\\d+\\.\\d+\\.\\d+$")])
         ```
 
         ## Custom Validators

@@ -66,7 +66,7 @@ INTERNALS_CONCEPTS = {
         ```python
         class RequestContext:
             def __init__(self, input_output):
-                self.user_id = input_output.get_header("X-User-ID")
+                self.user_id = input_output.request_headers.get("X-User-ID")
 
         # Each request gets a fresh RequestContext
         wsgi = clearskies.contexts.WsgiRef(
@@ -337,7 +337,7 @@ INTERNALS_CONCEPTS = {
 
         # Or when you call methods that need data
         first_user = query.first()  # Executes query
-        count = query.count()       # Executes COUNT query
+        count = len(query)          # Executes COUNT query
         all_users = list(query)     # Executes query and loads all
         ```
 
@@ -361,7 +361,7 @@ INTERNALS_CONCEPTS = {
 
         1. **Iterate** over results
         2. **Call `.first()`** to get one record
-        3. **Call `.count()`** to count records
+        3. **Call `len()`** to count records
         4. **Call `list()`** to convert to list
         5. **Access a record attribute** (for single record queries)
 
@@ -372,7 +372,7 @@ INTERNALS_CONCEPTS = {
 
         user = users.find("email=test@example.com")  # .find() calls .first()
 
-        count = users.where("status=active").count()  # COUNT query
+        count = len(users.where("status=active"))  # COUNT query
 
         all_users = list(users.where("status=active"))  # List conversion
         ```
@@ -497,11 +497,11 @@ INTERNALS_CONCEPTS = {
 
         ## Count Queries
 
-        `.count()` executes a separate COUNT query:
+        `len(query)` executes a separate COUNT query:
 
         ```python
         # Executes: SELECT COUNT(*) FROM users WHERE status = 'active'
-        count = users.where("status=active").count()
+        count = len(users.where("status=active"))
 
         # More efficient than:
         count = len(list(users.where("status=active")))  # Loads all records!
@@ -515,7 +515,7 @@ INTERNALS_CONCEPTS = {
         # Efficient existence check
         query = users.where("email=test@example.com")
         user = query.first()
-        if user.exists:
+        if user:  # models are truthy when they hold a record
             print("User found")
         else:
             print("User not found")
@@ -537,7 +537,7 @@ INTERNALS_CONCEPTS = {
         ## Performance Tips
 
         1. **Use `.limit()`**: Don't load more than needed
-        2. **Use `.count()` for counting**: Don't load records just to count
+        2. **Use `len(query)` for counting**: Don't load records just to count
         3. **Avoid N+1**: Load related data in bulk
         4. **Cache when appropriate**: Store results you'll reuse
         5. **Use pagination**: For large result sets
@@ -591,7 +591,7 @@ INTERNALS_CONCEPTS = {
         # user now has data
         print(user.name)  # "Alice"
         print(user.id)    # Generated UUID
-        print(user.exists)  # True
+        print(bool(user))  # True
         ```
 
         ### Model from Query
@@ -600,7 +600,7 @@ INTERNALS_CONCEPTS = {
         # Find returns a model instance
         user = users.find("email=alice@example.com")
 
-        if user.exists:
+        if user:
             print(user.name)
         else:
             print("Not found")
@@ -615,7 +615,7 @@ INTERNALS_CONCEPTS = {
         ```python
         user = User()
         user.name = "Alice"
-        # user.exists is False
+        # bool(user) is False
         # user.id is None (or empty)
         ```
 
@@ -623,7 +623,7 @@ INTERNALS_CONCEPTS = {
 
         ```python
         user = users.create({"name": "Alice"})
-        # user.exists is True
+        # bool(user) is True
         # user.id has a value
         ```
 
@@ -631,7 +631,7 @@ INTERNALS_CONCEPTS = {
 
         ```python
         user = users.find("id=nonexistent")
-        # user.exists is False
+        # bool(user) is False
         # Accessing user.name would return None/default
         ```
 
@@ -803,7 +803,7 @@ INTERNALS_CONCEPTS = {
         ## Best Practices
 
         1. **Use empty models for queries**: `users = User()`
-        2. **Check `.exists` after find**: Don't assume record exists
+        2. **Check truthiness after find** (`if user:`): Don't assume record exists
         3. **Don't hold references unnecessarily**: Let GC clean up
         4. **Use streaming for large datasets**: Avoid `list()` when possible
         5. **Understand save lifecycle**: Use hooks appropriately
@@ -817,21 +817,17 @@ INTERNALS_CONCEPTS = {
 
         ## InputOutput Object
 
-        Every endpoint receives an `input_output` object that provides:
-
-        - Request data (body, query params, headers)
-        - Response building methods
-        - Context information
+        Every request is wrapped in an `InputOutput` object. Callables can ask for
+        it (`input_output`) or, more commonly, for the individual pieces by name:
+        `request_data`, `query_parameters`, `routing_data`, `request_headers`,
+        `authorization_data`.
 
         ```python
-        def my_endpoint(input_output):
-            # Access request data
-            body = input_output.get_body()
-            query_param = input_output.get_query_parameter("search")
-            header = input_output.get_header("Authorization")
-
-            # Build response
-            return input_output.success({"message": "Hello"})
+        def my_endpoint(request_data, query_parameters, request_headers):
+            name = request_data.get("name")              # parsed JSON body
+            search = query_parameters.get("search")
+            auth = request_headers.get("Authorization")  # case-insensitive
+            return {"message": "Hello"}
         ```
 
         ## Request Data Access
@@ -840,34 +836,27 @@ INTERNALS_CONCEPTS = {
 
         ```python
         def my_endpoint(input_output):
-            # Get parsed JSON body
-            body = input_output.get_body()
-
-            # Body is a dictionary
-            name = body.get("name")
-            email = body.get("email")
+            raw = input_output.get_body()       # raw body string
+            data = input_output.request_data    # parsed JSON (dict/list) or None
+            has_body = input_output.has_body()
         ```
 
         ### Query Parameters
 
         ```python
-        def my_endpoint(input_output):
+        def my_endpoint(query_parameters):
             # GET /users?search=alice&limit=10
-
-            search = input_output.get_query_parameter("search")  # "alice"
-            limit = input_output.get_query_parameter("limit")    # "10" (string!)
-
-            # With default value
-            page = input_output.get_query_parameter("page", "1")
+            search = query_parameters.get("search")      # "alice"
+            limit = query_parameters.get("limit")        # "10" (string!)
+            page = query_parameters.get("page", "1")     # with default
         ```
 
         ### Headers
 
         ```python
-        def my_endpoint(input_output):
-            auth = input_output.get_header("Authorization")
-            content_type = input_output.get_header("Content-Type")
-            user_agent = input_output.get_header("User-Agent")
+        def my_endpoint(request_headers):
+            auth = request_headers.get("Authorization")
+            content_type = request_headers.content_type  # attribute access works too
         ```
 
         ### Path Parameters (Routing Data)
@@ -875,190 +864,136 @@ INTERNALS_CONCEPTS = {
         ```python
         # Route: /users/{user_id}/orders/{order_id}
 
-        def my_endpoint(input_output, routing_data):
+        def my_endpoint(routing_data):
             user_id = routing_data.get("user_id")
             order_id = routing_data.get("order_id")
         ```
 
+        ### Other Request Info
+
+        `input_output.request_method`, `get_full_path()`, `get_client_ip()`,
+        `get_protocol()`.
+
         ## Response Building
 
-        ### Success Response
+        A `Callable` endpoint just returns data. With `return_standard_response=True`
+        (the default) clearskies wraps it:
 
         ```python
-        def my_endpoint(input_output):
-            data = {"users": [...], "total": 100}
-            return input_output.success(data)
+        def my_endpoint():
+            return {"users": [], "total": 0}
 
-            # Returns: {"status": "success", "data": {...}}
+        # {"status": "success", "error": "", "data": {...}, "pagination": {}, "input_errors": {}}
         ```
 
-        ### Error Response
+        Errors are raised as exceptions from `clearskies.exceptions`:
+
+        | Exception | HTTP status | `status` field |
+        |-----------|-------------|----------------|
+        | `InputErrors({"field": "msg"})` | 200 | `input_errors` |
+        | `ClientError("msg")` | 400 | `client_error` |
+        | `Authentication("msg")` | 401 | `client_error` |
+        | `Authorization("msg")` | 403 | `client_error` |
+        | `NotFound("msg")` | 404 | `client_error` |
+
+        Any other exception is not caught and propagates to the context/server.
 
         ```python
-        def my_endpoint(input_output):
-            if not valid:
-                return input_output.error("Invalid request", 400)
-
-            # Returns: {"status": "error", "error": "Invalid request"}
-            # HTTP status: 400
-        ```
-
-        ### Input Errors (Validation)
-
-        ```python
-        def my_endpoint(input_output):
+        def my_endpoint(request_data):
             errors = {}
-            if not body.get("email"):
+            if not request_data.get("email"):
                 errors["email"] = "Email is required"
-            if not body.get("name"):
-                errors["name"] = "Name is required"
-
             if errors:
-                return input_output.input_errors(errors)
-
-            # Returns: {"status": "input_errors", "errors": {...}}
+                raise clearskies.exceptions.InputErrors(errors)
+            return {"created": True}
         ```
 
-        ### Redirect
+        A `Callable` cannot pick its own success status code (e.g. 201) or return
+        409/5xx: never return `input_output.respond(...)` from it, since the result
+        gets wrapped again with status 200. For full control write a custom endpoint
+        class whose `handle()` returns `input_output.respond(body, status_code)`.
+
+        ### Response Headers
 
         ```python
+        endpoint = clearskies.endpoints.Callable(
+            my_endpoint,
+            response_headers=["x-custom-header: value"],  # or a callable returning that list
+        )
+
+        # or inside the callable:
         def my_endpoint(input_output):
-            return input_output.redirect("/new-location", 302)
+            input_output.response_headers.add("x-custom-header", "value")
+            return {"ok": True}
         ```
 
-        ### Custom Response
+        ### Raw / Non-JSON Responses
 
         ```python
-        def my_endpoint(input_output):
-            return input_output.respond(
-                body={"custom": "response"},
-                status_code=201,
-                headers={"X-Custom-Header": "value"},
-            )
-        ```
+        def export_csv(input_output):
+            input_output.response_headers.add("content-type", "text/csv")
+            return "name,email\\nAlice,alice@example.com"
 
-        ## Content Types
-
-        ### JSON (Default)
-
-        ```python
-        def my_endpoint(input_output):
-            # Automatically serialized to JSON
-            return input_output.success({"key": "value"})
-        ```
-
-        ### Custom Content Type
-
-        ```python
-        def my_endpoint(input_output):
-            csv_data = "name,email\\nAlice,alice@example.com"
-            return input_output.respond(
-                body=csv_data,
-                status_code=200,
-                headers={"Content-Type": "text/csv"},
-            )
+        endpoint = clearskies.endpoints.Callable(export_csv, return_standard_response=False)
         ```
 
         ## Request Context
 
-        ### Authorization Data
-
         ```python
-        def my_endpoint(input_output, authorization_data):
-            # Data from authentication handler
+        def my_endpoint(authorization_data):
+            # Data from the authentication handler
             user_id = authorization_data.get("user_id")
             roles = authorization_data.get("roles", [])
         ```
 
-        ### Routing Data
-
-        ```python
-        def my_endpoint(input_output, routing_data):
-            # Path parameters
-            resource_id = routing_data.get("id")
-        ```
-
         ## Input Validation Flow
 
-        ### Automatic Validation (Endpoints)
-
         ```python
-        # RestfulApi endpoint validates automatically
+        # Model-based endpoints validate writeable columns automatically
         endpoint = clearskies.endpoints.RestfulApi(
             model_class=User,
             writeable_column_names=["name", "email"],
-            # Validators on columns are checked automatically
         )
+
+        # Callables can validate via writeable_column_names/input_schema,
+        # input_validation_callable, or by raising InputErrors themselves.
         ```
 
-        ### Manual Validation (Callable)
+        ## CORS
+
+        CORS is a security header on the endpoint (or endpoint group):
 
         ```python
-        def my_endpoint(input_output):
-            body = input_output.get_body()
-
-            # Manual validation
-            errors = {}
-            if not body.get("email"):
-                errors["email"] = "Required"
-            if body.get("age") and int(body["age"]) < 0:
-                errors["age"] = "Must be positive"
-
-            if errors:
-                return input_output.input_errors(errors)
-
-            # Process valid data
-            return input_output.success({"created": True})
-        ```
-
-        ## File Handling
-
-        ### File Uploads (if supported)
-
-        ```python
-        def my_endpoint(input_output):
-            # Access uploaded file
-            file = input_output.get_file("document")
-            if file:
-                content = file.read()
-                filename = file.filename
-        ```
-
-        ## CORS Configuration
-
-        CORS is typically handled at the context level:
-
-        ```python
-        wsgi = clearskies.contexts.WsgiRef(
+        endpoint = clearskies.endpoints.Callable(
             my_endpoint,
-            cors={
-                "allowed_origins": ["https://example.com"],
-                "allowed_methods": ["GET", "POST"],
-                "allowed_headers": ["Authorization", "Content-Type"],
-            },
+            security_headers=[
+                clearskies.security_headers.Cors(
+                    origin="https://example.com",
+                    methods=["GET", "POST"],
+                    headers=["Authorization", "Content-Type"],
+                ),
+            ],
         )
         ```
 
         ## Request Lifecycle
 
         1. **Context receives request** - HTTP request arrives
-        2. **Parse request** - Body, headers, query params extracted
-        3. **Authentication** - Auth handler validates credentials
-        4. **Routing** - Match URL to endpoint
-        5. **Input validation** - Validate request data
-        6. **Endpoint execution** - Your code runs
-        7. **Response building** - Format response
-        8. **Send response** - HTTP response sent
+        2. **Routing** - Match URL/method to endpoint
+        3. **Authentication / authorization**
+        4. **Input validation** - Validate request data
+        5. **Endpoint execution** - Your code runs
+        6. **Response building** - Wrap data, add headers
+        7. **Send response**
 
         ## Best Practices
 
-        1. **Validate early**: Check input before processing
-        2. **Use appropriate response methods**: success, error, input_errors
+        1. **Validate early**: Raise `InputErrors` before processing
+        2. **Return data, raise errors**: Let clearskies build the response
         3. **Handle missing data**: Use `.get()` with defaults
-        4. **Set correct status codes**: 200, 201, 400, 404, 500
-        5. **Include helpful error messages**: For debugging
-        6. **Use authorization_data**: For user context
-        7. **Don't trust input**: Always validate
+        4. **Inject what you need**: `request_data`, `query_parameters`, etc.
+        5. **Use authorization_data**: For user context
+        6. **Don't trust input**: Always validate
     """),
     "routing": textwrap.dedent("""\
         # Routing in clearskies
@@ -1118,17 +1053,15 @@ INTERNALS_CONCEPTS = {
         For Callable endpoints, use placeholders:
 
         ```python
-        def my_endpoint(input_output, routing_data):
-            user_id = routing_data.get("user_id")
-            order_id = routing_data.get("order_id")
-            return input_output.success({
-                "user_id": user_id,
-                "order_id": order_id,
-            })
+        def my_endpoint(routing_data):
+            return {
+                "user_id": routing_data.get("user_id"),
+                "order_id": routing_data.get("order_id"),
+            }
 
         endpoint = clearskies.endpoints.Callable(
             url="users/{user_id}/orders/{order_id}",
-            callable=my_endpoint,
+            to_call=my_endpoint,
         )
 
         # Matches: /users/123/orders/456
@@ -1209,16 +1142,14 @@ INTERNALS_CONCEPTS = {
         def my_endpoint(input_output):
             method = input_output.request_method
 
+            # request_methods below already rejects anything else with a 404
             if method == "GET":
-                return input_output.success({"action": "read"})
-            elif method == "POST":
-                return input_output.success({"action": "create"})
-            else:
-                return input_output.error("Method not allowed", 405)
+                return {"action": "read"}
+            return {"action": "create"}
 
         endpoint = clearskies.endpoints.Callable(
             url="custom",
-            callable=my_endpoint,
+            to_call=my_endpoint,
             request_methods=["GET", "POST"],
         )
         ```
@@ -1228,10 +1159,10 @@ INTERNALS_CONCEPTS = {
         Query parameters are separate from routing:
 
         ```python
-        def my_endpoint(input_output):
+        def my_endpoint(query_parameters):
             # URL: /users?search=alice&limit=10
-            search = input_output.get_query_parameter("search")  # "alice"
-            limit = input_output.get_query_parameter("limit")    # "10"
+            search = query_parameters.get("search")  # "alice"
+            limit = query_parameters.get("limit")    # "10"
         ```
 
         ## Route Matching Order
@@ -1289,7 +1220,7 @@ INTERNALS_CONCEPTS = {
             user_id = columns.BelongsToId(parent_model_class=User)
 
         # Group multiple endpoints
-        api = clearskies.endpoints.EndpointGroup(
+        api = clearskies.EndpointGroup(
             url="api/v1",
             endpoints=[
                 clearskies.endpoints.RestfulApi(
@@ -1315,7 +1246,7 @@ INTERNALS_CONCEPTS = {
         Apply authentication to all endpoints in a group:
 
         ```python
-        api = clearskies.endpoints.EndpointGroup(
+        api = clearskies.EndpointGroup(
             url="api/v1",
             authentication=clearskies.authentication.SecretBearer(
                 environment_key="API_SECRET",
@@ -1334,7 +1265,7 @@ INTERNALS_CONCEPTS = {
         Combine different endpoint types:
 
         ```python
-        api = clearskies.endpoints.EndpointGroup(
+        api = clearskies.EndpointGroup(
             url="api/v1",
             endpoints=[
                 # RESTful API endpoints
@@ -1343,7 +1274,7 @@ INTERNALS_CONCEPTS = {
                 # Custom callable endpoint
                 clearskies.endpoints.Callable(
                     url="health",
-                    callable=lambda io: io.success({"status": "ok"}),
+                    to_call=lambda: {"status": "ok"},
                 ),
 
                 # List-only endpoint
@@ -1361,7 +1292,7 @@ INTERNALS_CONCEPTS = {
 
         ```python
         # v1 API
-        v1_api = clearskies.endpoints.EndpointGroup(
+        v1_api = clearskies.EndpointGroup(
             url="api/v1",
             endpoints=[
                 clearskies.endpoints.RestfulApi(url="users", model_class=User),
@@ -1369,7 +1300,7 @@ INTERNALS_CONCEPTS = {
         )
 
         # v2 API with different models
-        v2_api = clearskies.endpoints.EndpointGroup(
+        v2_api = clearskies.EndpointGroup(
             url="api/v2",
             endpoints=[
                 clearskies.endpoints.RestfulApi(url="users", model_class=UserV2),
@@ -1377,7 +1308,7 @@ INTERNALS_CONCEPTS = {
         )
 
         # Root group containing both versions
-        root = clearskies.endpoints.EndpointGroup(
+        root = clearskies.EndpointGroup(
             endpoints=[v1_api, v2_api],
         )
         ```
@@ -1388,7 +1319,7 @@ INTERNALS_CONCEPTS = {
 
         ```python
         # Different authentication for different endpoints
-        api = clearskies.endpoints.EndpointGroup(
+        api = clearskies.EndpointGroup(
             url="api/v1",
             authentication=clearskies.authentication.SecretBearer(
                 environment_key="API_SECRET",
@@ -1400,7 +1331,7 @@ INTERNALS_CONCEPTS = {
                 # Public endpoint - overrides group auth
                 clearskies.endpoints.Callable(
                     url="health",
-                    callable=lambda io: io.success({"status": "ok"}),
+                    to_call=lambda: {"status": "ok"},
                     authentication=clearskies.authentication.Public(),
                 ),
             ],
@@ -1412,7 +1343,7 @@ INTERNALS_CONCEPTS = {
         ### By Resource
 
         ```python
-        users_group = clearskies.endpoints.EndpointGroup(
+        users_group = clearskies.EndpointGroup(
             url="users",
             endpoints=[
                 clearskies.endpoints.List(url="", model_class=User),
@@ -1421,7 +1352,7 @@ INTERNALS_CONCEPTS = {
             ],
         )
 
-        orders_group = clearskies.endpoints.EndpointGroup(
+        orders_group = clearskies.EndpointGroup(
             url="orders",
             endpoints=[
                 clearskies.endpoints.List(url="", model_class=Order),
@@ -1429,7 +1360,7 @@ INTERNALS_CONCEPTS = {
             ],
         )
 
-        api = clearskies.endpoints.EndpointGroup(
+        api = clearskies.EndpointGroup(
             url="api/v1",
             endpoints=[users_group, orders_group],
         )
@@ -1438,7 +1369,7 @@ INTERNALS_CONCEPTS = {
         ### By Feature
 
         ```python
-        admin_api = clearskies.endpoints.EndpointGroup(
+        admin_api = clearskies.EndpointGroup(
             url="admin",
             authentication=clearskies.authentication.SecretBearer(
                 environment_key="ADMIN_SECRET",
@@ -1449,7 +1380,7 @@ INTERNALS_CONCEPTS = {
             ],
         )
 
-        public_api = clearskies.endpoints.EndpointGroup(
+        public_api = clearskies.EndpointGroup(
             url="public",
             authentication=clearskies.authentication.Public(),
             endpoints=[
@@ -1501,7 +1432,7 @@ INTERNALS_CONCEPTS = {
         )
 
         # API structure
-        api = clearskies.endpoints.EndpointGroup(
+        api = clearskies.EndpointGroup(
             url="api/v1",
             authentication=api_auth,
             endpoints=[
@@ -1532,7 +1463,7 @@ INTERNALS_CONCEPTS = {
                 # Health check
                 clearskies.endpoints.Callable(
                     url="health",
-                    callable=lambda io: io.success({"status": "ok"}),
+                    to_call=lambda: {"status": "ok"},
                     authentication=clearskies.authentication.Public(),
                 ),
             ],
@@ -1556,367 +1487,163 @@ INTERNALS_CONCEPTS = {
     "responses": textwrap.dedent("""\
         # Response Handling in clearskies
 
-        clearskies provides several methods to build and return responses from endpoints.
-        Understanding these response types helps you create consistent APIs.
+        clearskies builds JSON responses for you; this covers status codes, headers and raw output.
 
-        ## Standard Response Methods
+        ## Standard Responses
 
-        All response methods are available on the `input_output` object:
+        Endpoints build responses for you. A `Callable` returns data; errors are
+        raised as exceptions from `clearskies.exceptions`.
 
         ### Success Response
 
         ```python
-        def my_endpoint(input_output):
-            data = {"user": {"id": "123", "name": "Alice"}}
-            return input_output.success(data)
+        def my_endpoint():
+            return {"user": {"id": "123", "name": "Alice"}}
 
-        # Response:
-        # {
-        #   "status": "success",
-        #   "data": {"user": {"id": "123", "name": "Alice"}}
-        # }
-        # HTTP Status: 200
+        # HTTP 200
+        # {"status": "success", "error": "", "data": {"user": {...}},
+        #  "pagination": {}, "input_errors": {}}
         ```
+
+        Returning a model query (with `model_class` and `readable_column_names` set)
+        serializes the records and fills `pagination` automatically.
 
         ### Error Response
 
         ```python
-        def my_endpoint(input_output):
-            return input_output.error("User not found", 404)
+        def my_endpoint(users, routing_data):
+            user = users.find(f"id={routing_data['id']}")
+            if not user:
+                raise clearskies.exceptions.NotFound("User not found")
+            return {"id": user.id}
 
-        # Response:
-        # {
-        #   "status": "error",
-        #   "error": "User not found"
-        # }
-        # HTTP Status: 404
+        # HTTP 404
+        # {"status": "client_error", "error": "User not found", ...}
         ```
 
         ### Input Errors (Validation)
 
         ```python
-        def my_endpoint(input_output):
-            errors = {
+        def my_endpoint():
+            raise clearskies.exceptions.InputErrors({
                 "email": "Email is required",
                 "name": "Name must be at least 3 characters",
-            }
-            return input_output.input_errors(errors)
-
-        # Response:
-        # {
-        #   "status": "input_errors",
-        #   "errors": {
-        #     "email": "Email is required",
-        #     "name": "Name must be at least 3 characters"
-        #   }
-        # }
-        # HTTP Status: 400
-        ```
-
-        ## Custom Responses
-
-        ### Custom Response with Status Code
-
-        ```python
-        def my_endpoint(input_output):
-            return input_output.respond(
-                body={"message": "Created successfully"},
-                status_code=201,
-            )
-        ```
-
-        ### Custom Response with Headers
-
-        ```python
-        def my_endpoint(input_output):
-            return input_output.respond(
-                body={"data": "..."},
-                status_code=200,
-                headers={
-                    "X-Custom-Header": "value",
-                    "Cache-Control": "max-age=3600",
-                },
-            )
-        ```
-
-        ### Redirect Response
-
-        ```python
-        def my_endpoint(input_output):
-            return input_output.redirect("/new-location", 302)
-
-        # HTTP Status: 302
-        # Location header set to: /new-location
-        ```
-
-        ## Content Types
-
-        ### JSON (Default)
-
-        ```python
-        def my_endpoint(input_output):
-            # Automatically serialized to JSON
-            return input_output.success({
-                "items": [1, 2, 3],
-                "nested": {"key": "value"},
             })
 
-        # Content-Type: application/json
-        ```
-
-        ### Plain Text
-
-        ```python
-        def my_endpoint(input_output):
-            return input_output.respond(
-                body="Plain text response",
-                status_code=200,
-                headers={"Content-Type": "text/plain"},
-            )
-        ```
-
-        ### CSV
-
-        ```python
-        def my_endpoint(input_output):
-            csv_data = "name,email\\nAlice,alice@example.com\\nBob,bob@example.com"
-            return input_output.respond(
-                body=csv_data,
-                status_code=200,
-                headers={
-                    "Content-Type": "text/csv",
-                    "Content-Disposition": "attachment; filename=users.csv",
-                },
-            )
-        ```
-
-        ### XML
-
-        ```python
-        def my_endpoint(input_output):
-            xml_data = '<?xml version="1.0"?><users><user><name>Alice</name></user></users>'
-            return input_output.respond(
-                body=xml_data,
-                status_code=200,
-                headers={"Content-Type": "application/xml"},
-            )
+        # HTTP 200 (yes, 200)
+        # {"status": "input_errors", "input_errors": {"email": ..., "name": ...}, ...}
         ```
 
         ## HTTP Status Codes
 
-        ### Success Codes (2xx)
+        | Status | How |
+        |--------|-----|
+        | 200 | return data |
+        | 400 | `raise clearskies.exceptions.ClientError("Invalid request")` |
+        | 401 | `raise clearskies.exceptions.Authentication("Unauthorized")` |
+        | 403 | `raise clearskies.exceptions.Authorization("Forbidden")` |
+        | 404 | `raise clearskies.exceptions.NotFound("Not found")` |
+        | 302 / 307 | `MovedPermanently(url)` / `MovedTemporarily(url)` (the Location header is malformed in 2.1.14; avoid) |
+        | other (201, 409, 5xx) | not available from a `Callable`; see below |
+
+        Uncaught exceptions are not converted: they propagate to the context/server.
+        Never return `input_output.respond(...)` from a `Callable`: its return value
+        is treated as data and wrapped again with status 200.
+
+        ### Custom Status Codes
+
+        Write a small endpoint class and call `respond(body, status_code)` yourself:
 
         ```python
-        # 200 OK - Standard success
-        return input_output.success({"data": "..."})
-
-        # 201 Created - Resource created
-        return input_output.respond({"id": "123"}, 201)
-
-        # 202 Accepted - Request accepted for processing
-        return input_output.respond({"job_id": "abc"}, 202)
-
-        # 204 No Content - Success with no body
-        return input_output.respond(body=None, status_code=204)
-        ```
-
-        ### Client Error Codes (4xx)
-
-        ```python
-        # 400 Bad Request - Invalid input
-        return input_output.error("Invalid request", 400)
-
-        # 401 Unauthorized - Authentication required
-        return input_output.error("Unauthorized", 401)
-
-        # 403 Forbidden - Authenticated but not authorized
-        return input_output.error("Forbidden", 403)
-
-        # 404 Not Found - Resource doesn't exist
-        return input_output.error("Not found", 404)
-
-        # 409 Conflict - Resource conflict (e.g., duplicate)
-        return input_output.error("Email already exists", 409)
-
-        # 422 Unprocessable Entity - Validation errors
-        return input_output.input_errors({"email": "Invalid format"})
-        ```
-
-        ### Server Error Codes (5xx)
-
-        ```python
-        # 500 Internal Server Error
-        return input_output.error("Internal server error", 500)
-
-        # 503 Service Unavailable
-        return input_output.error("Service temporarily unavailable", 503)
+        class Conflict(clearskies.endpoints.Callable):
+            def handle(self, input_output):
+                return self.respond_json(
+                    input_output, {"status": "client_error", "error": "Email already exists"}, 409
+                )
         ```
 
         ## Response Headers
 
-        ### Cache Control
+        `InputOutput.respond()` has no `headers` argument. Set headers on the endpoint:
 
         ```python
-        def my_endpoint(input_output):
-            return input_output.respond(
-                body={"data": "..."},
-                status_code=200,
-                headers={
-                    "Cache-Control": "public, max-age=3600",
-                    "Expires": "Wed, 21 Oct 2026 07:28:00 GMT",
-                },
-            )
-        ```
-
-        ### CORS Headers
-
-        CORS is typically configured at the context level:
-
-        ```python
-        wsgi = clearskies.contexts.WsgiRef(
+        endpoint = clearskies.endpoints.Callable(
             my_endpoint,
-            cors={
-                "allowed_origins": ["https://example.com"],
-                "allowed_methods": ["GET", "POST", "PUT", "DELETE"],
-                "allowed_headers": ["Authorization", "Content-Type"],
-                "expose_headers": ["X-Total-Count"],
-                "max_age": 3600,
-            },
+            response_headers=["x-request-id: abc-123", "x-rate-limit-remaining: 99"],
+            security_headers=[clearskies.security_headers.CacheControl(public=True, max_age=3600)],
         )
         ```
 
-        ### Custom Headers
+        `response_headers` may also be a callable returning that list. Inside a
+        callable you can add headers directly:
 
         ```python
         def my_endpoint(input_output):
-            return input_output.respond(
-                body={"data": "..."},
-                status_code=200,
-                headers={
-                    "X-Request-ID": "abc-123",
-                    "X-Rate-Limit-Remaining": "99",
-                    "X-Custom-Header": "value",
-                },
-            )
+            input_output.response_headers.add("x-total-count", "42")
+            return {"items": []}
+        ```
+
+        ### CORS
+
+        ```python
+        endpoint = clearskies.endpoints.Callable(
+            my_endpoint,
+            security_headers=[
+                clearskies.security_headers.Cors(
+                    origin="https://example.com",
+                    methods=["GET", "POST", "PUT", "DELETE"],
+                    headers=["Authorization", "Content-Type"],
+                    expose_headers=["X-Total-Count"],
+                    max_age=3600,
+                ),
+            ],
+        )
+        ```
+
+        ## Non-JSON Responses (CSV, text, XML, downloads)
+
+        Use `return_standard_response=False`: the return value is sent as-is with
+        status 200. Set the content type via `input_output.response_headers` (the
+        endpoint's `response_headers` option is not applied on this path).
+
+        ```python
+        def export_users(input_output):
+            input_output.response_headers.add("content-type", "text/csv")
+            input_output.response_headers.add("content-disposition", 'attachment; filename="users.csv"')
+            return "name,email\\nAlice,alice@example.com\\nBob,bob@example.com"
+
+        endpoint = clearskies.endpoints.Callable(export_users, return_standard_response=False)
         ```
 
         ## Pagination Responses
 
-        ### With Metadata
-
         ```python
-        def my_endpoint(input_output, users):
-            page = int(input_output.get_query_parameter("page", "1"))
-            limit = int(input_output.get_query_parameter("limit", "20"))
-            offset = (page - 1) * limit
+        def list_users(users, query_parameters):
+            limit = int(query_parameters.get("limit", "20"))
+            start = int(query_parameters.get("start", "0"))
+            return users.limit(limit).pagination(start=start)
 
-            user_list = list(users.limit(limit).pagination(start=offset))
-            total = users.count()
+        endpoint = clearskies.endpoints.Callable(
+            list_users,
+            model_class=User,
+            readable_column_names=["id", "name"],
+        )
 
-            return input_output.success({
-                "users": [u.to_dict() for u in user_list],
-                "pagination": {
-                    "page": page,
-                    "limit": limit,
-                    "total": total,
-                    "pages": (total + limit - 1) // limit,
-                },
-            })
+        # {"status": "success", "data": [...],
+        #  "pagination": {"number_results": 100, "limit": 20, "next_page": {"start": 20}}, ...}
         ```
 
-        ### With Link Headers
-
-        ```python
-        def my_endpoint(input_output, users):
-            page = int(input_output.get_query_parameter("page", "1"))
-            limit = 20
-
-            user_list = list(users.limit(limit).pagination(start=(page - 1) * limit))
-            total = users.count()
-            pages = (total + limit - 1) // limit
-
-            # Build Link header
-            links = []
-            if page > 1:
-                links.append(f'</users?page=1>; rel="first"')
-                links.append(f'</users?page={page - 1}>; rel="prev"')
-            if page < pages:
-                links.append(f'</users?page={page + 1}>; rel="next"')
-                links.append(f'</users?page={pages}>; rel="last"')
-
-            return input_output.respond(
-                body={"users": [u.to_dict() for u in user_list]},
-                status_code=200,
-                headers={
-                    "Link": ", ".join(links),
-                    "X-Total-Count": str(total),
-                },
-            )
-        ```
-
-        ## Error Response Patterns
-
-        ### Consistent Error Format
-
-        ```python
-        def handle_error(error, input_output):
-            if isinstance(error, ValidationError):
-                return input_output.input_errors(error.errors)
-
-            if isinstance(error, NotFoundError):
-                return input_output.error("Resource not found", 404)
-
-            # Log unexpected errors
-            logging.exception("Unexpected error")
-            return input_output.error("Internal server error", 500)
-        ```
-
-        ### Detailed Error Information
-
-        ```python
-        def my_endpoint(input_output):
-            try:
-                # ... operation ...
-                pass
-            except Exception as e:
-                return input_output.respond(
-                    body={
-                        "status": "error",
-                        "error": str(e),
-                        "code": "ERR_OPERATION_FAILED",
-                        "timestamp": datetime.utcnow().isoformat(),
-                    },
-                    status_code=500,
-                )
-        ```
-
-        ## File Downloads
-
-        ```python
-        def my_endpoint(input_output):
-            file_content = generate_file_content()
-
-            return input_output.respond(
-                body=file_content,
-                status_code=200,
-                headers={
-                    "Content-Type": "application/octet-stream",
-                    "Content-Disposition": 'attachment; filename="export.csv"',
-                },
-            )
-        ```
+        For built-in list endpoints, prefer `clearskies.endpoints.List` which
+        handles pagination, sorting and filtering for you.
 
         ## Best Practices
 
-        1. **Use appropriate status codes**: Match HTTP semantics
-        2. **Consistent response format**: Use success/error/input_errors
+        1. **Return data, raise errors**: Keep the standard response format
+        2. **Use the right exception**: It picks the status code
         3. **Include helpful messages**: Clear error descriptions
-        4. **Set correct content types**: Match body format
-        5. **Use pagination for lists**: Don't return unbounded data
-        6. **Include metadata**: Total counts, pagination info
-        7. **Handle errors gracefully**: Don't expose internal details
-        8. **Use proper cache headers**: For cacheable resources
-        9. **Document response formats**: In API docs
-        10. **Version your responses**: Maintain backward compatibility
+        4. **Set content types** for non-JSON responses
+        5. **Paginate lists**: Don't return unbounded data
+        6. **Don't expose internal details** in error messages
+        7. **Use cache headers**: `security_headers.CacheControl`
     """),
 }

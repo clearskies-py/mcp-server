@@ -51,9 +51,6 @@ def example_authorization() -> str:
                 model_class=TenantResource,
                 authentication=clearskies.authentication.Jwks(
                     jwks_url="https://auth.example.com/.well-known/jwks.json",
-                    claims_to_authorization_data={
-                        "tenant_id": "https://example.com/tenant_id",
-                    },
                 ),
                 readable_column_names=["id", "name", "data", "created_at"],
                 writeable_column_names=["name", "data"],
@@ -130,7 +127,6 @@ def example_authorization() -> str:
                         model_class=Document,
                         authentication=clearskies.authentication.Jwks(
                             jwks_url="https://auth.example.com/.well-known/jwks.json",
-                            claims_to_authorization_data={"role": "role"},
                         ),
                         readable_column_names=["id", "title", "content", "classification", "created_at"],
                         writeable_column_names=[],  # Read-only via REST
@@ -143,7 +139,6 @@ def example_authorization() -> str:
                         model_class=Document,
                         authentication=clearskies.authentication.Jwks(
                             jwks_url="https://auth.example.com/.well-known/jwks.json",
-                            claims_to_authorization_data={"role": "role"},
                         ),
                     ),
                 ],
@@ -206,7 +201,7 @@ def example_authorization() -> str:
             user_id = authorization_data.get("sub")
 
             profile = user_profiles.find(f"id={profile_id}")
-            if not profile.exists:
+            if not profile:
                 return input_output.respond_json(
                     {"status": "client_error", "error": "Profile not found"},
                     404,
@@ -238,7 +233,6 @@ def example_authorization() -> str:
                         model_class=UserProfile,
                         authentication=clearskies.authentication.Jwks(
                             jwks_url="https://auth.example.com/.well-known/jwks.json",
-                            claims_to_authorization_data={"sub": "sub"},
                         ),
                         readable_column_names=["id", "display_name", "bio", "is_public"],
                         default_sort_column_name="display_name",
@@ -250,7 +244,6 @@ def example_authorization() -> str:
                         model_class=UserProfile,
                         authentication=clearskies.authentication.Jwks(
                             jwks_url="https://auth.example.com/.well-known/jwks.json",
-                            claims_to_authorization_data={"sub": "sub"},
                         ),
                     ),
                 ],
