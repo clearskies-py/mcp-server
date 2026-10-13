@@ -4,6 +4,7 @@ Code generation tools for clearskies MCP server.
 This module contains tools for generating clearskies models, endpoints, and contexts.
 """
 
+import inspect
 import textwrap
 
 from ..introspection import COLUMN_TYPES, CONTEXT_TYPES, ENDPOINT_TYPES
@@ -158,6 +159,9 @@ def generate_model(
     if relationship_model_imports:
         parts.append("")
 
+    if id_column_name not in {col["name"] for col in columns}:
+        column_lines.insert(0, f"    {id_column_name} = columns.Uuid()")
+
     parts.append(f"\nclass {name}(clearskies.Model):")
     parts.append(f'    id_column_name = "{id_column_name}"')
     parts.append(f"    backend = clearskies.backends.{backend_type}{backend_opts_str}")
@@ -202,6 +206,25 @@ def generate_endpoint(
     if endpoint_type not in ENDPOINT_TYPES:
         available = ", ".join(sorted(ENDPOINT_TYPES))
         return f"Error: Unknown endpoint type '{endpoint_type}'. Available: {available}"
+
+    provided = {"url", "model_class", "authentication", *extra_options}
+    for arg, value in {
+        "readable_column_names": readable_column_names,
+        "writeable_column_names": writeable_column_names,
+        "sortable_column_names": sortable_column_names,
+        "searchable_column_names": searchable_column_names,
+        "default_sort_column_name": default_sort_column_name,
+    }.items():
+        if value:
+            provided.add(arg)
+    required = [
+        name
+        for name, param in inspect.signature(ENDPOINT_TYPES[endpoint_type]).parameters.items()
+        if param.default is inspect.Parameter.empty and param.kind is not param.VAR_KEYWORD
+    ]
+    missing = [name for name in required if name not in provided]
+    if missing:
+        return f"Error: {endpoint_type} requires {', '.join(missing)} (pass non-empty values)."
 
     parts = []
     parts.append(f"clearskies.endpoints.{endpoint_type}(")

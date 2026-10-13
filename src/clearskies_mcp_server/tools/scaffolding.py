@@ -79,6 +79,8 @@ def scaffold_project(
         readable = model_def.get("readable_column_names")
         if not readable:
             readable = [c["name"] for c in m_columns]
+            if m_id_col not in readable:
+                readable.insert(0, m_id_col)
 
         writeable = model_def.get("writeable_column_names")
         if not writeable:
@@ -205,6 +207,8 @@ def scaffold_restful_api(
         url = snake + "s"
 
     readable = [c["name"] for c in columns]
+    if "id" not in readable:
+        readable.insert(0, "id")
     writeable = [
         c["name"]
         for c in columns

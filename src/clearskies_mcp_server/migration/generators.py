@@ -5,7 +5,7 @@ Generate v2-compatible code from v1 patterns.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .mapper import V1ToV2Mapper
 
@@ -244,31 +244,38 @@ class EndpointGenerator:
         if model_class:
             lines.append(f"    model_class={model_class},")
 
-        # Add column configurations
+        # Column configuration inferred from the model; explicit v1 config overrides it below
+        options: dict[str, Any] = {}
         if model_def:
             readable_cols = [col.name for col in model_def.columns if not col.name.startswith("_")]
-            writeable_cols = [
+            options["readable_column_names"] = readable_cols
+            options["writeable_column_names"] = [
                 col.name
                 for col in model_def.columns
                 if not col.name.startswith("_") and col.name not in [model_def.id_column, "created_at", "updated_at"]
             ]
 
-            lines.append(f"    readable_column_names={readable_cols!r},")
-            lines.append(f"    writeable_column_names={writeable_cols!r},")
+        for key, value in handler_def.config.items():
+            if key not in ["base_url", "url", "model_class", "authentication", "authentication_config"]:
+                options[self.mapper.map_config_key(key)] = value
+
+        # v2 RestfulApi requires these (v1 did not); default them from the readable columns
+        if endpoint_class_name == "RestfulApi" and options.get("readable_column_names"):
+            readable = options["readable_column_names"]
+            options.setdefault("searchable_column_names", readable)
+            options.setdefault("sortable_column_names", readable)
+            options.setdefault("default_sort_column_name", readable[0])
+
+        for key, value in options.items():
+            if isinstance(value, str):
+                lines.append(f'    {key}="{value}",')
+            else:
+                lines.append(f"    {key}={value!r},")
 
         # Add authentication if present
         if handler_def.authentication or "authentication" in handler_def.config:
             auth_code, _ = self.auth_helper.migrate_auth(handler_def.config)
             lines.append(f"    {auth_code},")
-
-        # Add other config
-        for key, value in handler_def.config.items():
-            if key not in ["base_url", "url", "model_class", "authentication", "authentication_config"]:
-                v2_key = self.mapper.map_config_key(key)
-                if isinstance(value, str):
-                    lines.append(f'    {v2_key}="{value}",')
-                else:
-                    lines.append(f"    {v2_key}={value!r},")
 
         lines.append(")")
 
