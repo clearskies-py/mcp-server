@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2026-10-13
+
+### Changed
+- Update dependencies
+
+### Fixed
+- Make served code examples construct on clearskies 2.1.15
+- Emit code that constructs on clearskies 2.1.15
+- Align concepts and examples with clearskies 2.1.15
+- Use real package names in install hints
+- Generate code that exists in clearskies v2
+
 ## [1.1.3] - 2026-08-27
+
+### Changed
+- Bump version to v1.1.3 by @github-actions[bot]
 
 ### Fixed
 - Migrate from FastMCP to MCPServer for mcp 2.x compatibility
@@ -51,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## New Contributors
 * @github-actions[bot] made their first contribution
 * @ made their first contribution
+[1.1.4]: https://github.com/clearskies-py/mcp-server/compare/v1.1.3..v1.1.4
 [1.1.3]: https://github.com/clearskies-py/mcp-server/compare/v1.1.2..v1.1.3
 [1.1.2]: https://github.com/clearskies-py/mcp-server/compare/v1.1.1..v1.1.2
 [1.1.1]: https://github.com/clearskies-py/mcp-server/compare/v1.1.0..v1.1.1
