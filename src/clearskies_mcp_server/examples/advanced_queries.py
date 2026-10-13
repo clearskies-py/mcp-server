@@ -45,10 +45,10 @@ def example_advanced_queries() -> str:
             backend = clearskies.backends.MemoryBackend()
 
             id = columns.Uuid()
-            email = columns.Email(max_length=255, validators=[Required()])
-            name = columns.String(max_length=255, validators=[Required()])
+            email = columns.Email(validators=[Required()])
+            name = columns.String(validators=[Required()])
             status = columns.Select(["active", "inactive", "suspended"], default="active")
-            country = columns.String(max_length=100)
+            country = columns.String()
             created_at = columns.Created()
             last_login = columns.Datetime()
 
@@ -60,7 +60,7 @@ def example_advanced_queries() -> str:
 
             id = columns.Uuid()
             user_id = columns.BelongsToId(parent_model_class=User)
-            order_number = columns.String(max_length=50, validators=[Required()])
+            order_number = columns.String(validators=[Required()])
             amount = columns.Float(validators=[Required()])
             status = columns.Select(
                 ["pending", "confirmed", "shipped", "delivered", "cancelled"],
@@ -69,10 +69,7 @@ def example_advanced_queries() -> str:
             created_at = columns.Created()
 
             # Relationship
-            user = columns.BelongsToModel(
-                parent_model_class=User,
-                parent_id_column_name="user_id",
-            )
+            user = columns.BelongsToModel("user_id")
 
 
         class Product(clearskies.Model):
@@ -81,8 +78,8 @@ def example_advanced_queries() -> str:
             backend = clearskies.backends.MemoryBackend()
 
             id = columns.Uuid()
-            name = columns.String(max_length=255, validators=[Required()])
-            category = columns.String(max_length=100)
+            name = columns.String(validators=[Required()])
+            category = columns.String()
             price = columns.Float(validators=[Required()])
             stock = columns.Integer(default=0)
             created_at = columns.Created()

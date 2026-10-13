@@ -112,7 +112,12 @@ def list_available_authentication() -> str:
             model_class=User,
             authentication=clearskies.authentication.SecretBearer(
                 environment_key="API_SECRET"
-            )
+            ),
+            readable_column_names=["id", "name", "email"],
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
         )
     """
     if not AUTHENTICATION_TYPES:
@@ -127,7 +132,9 @@ def list_available_validators() -> str:
     to columns via the validators parameter.
 
     Example:
-        name = columns.String(validators=[Required(), MinLength(3)])
+        from clearskies.validators import MinimumLength, Required
+
+        name = columns.String(validators=[Required(), MinimumLength(3)])
     """
     if not VALIDATOR_TYPES:
         return "(no validator types available - module may not be installed)"

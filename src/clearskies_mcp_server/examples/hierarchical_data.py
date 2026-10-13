@@ -23,7 +23,7 @@ def example_hierarchical_data() -> str:
         Hierarchical data example with clearskies CategoryTree columns.
 
         This script demonstrates:
-        - Self-referencing relationships with BelongsToSelf
+        - Self-referencing relationships with CategoryTree
         - CategoryTreeAncestors for parent chain
         - CategoryTreeChildren for immediate children
         - CategoryTreeDescendants for all descendants
@@ -38,6 +38,22 @@ def example_hierarchical_data() -> str:
         # MODEL DEFINITION
         # =============================================================================
 
+        class CategoryTreeEntry(clearskies.Model):
+            """
+            Pre-computed tree table maintained by the CategoryTree column.
+
+            The CategoryTree column requires these column names by default.
+            """
+            id_column_name = "id"
+            backend = clearskies.backends.MemoryBackend()
+
+            id = columns.Uuid()
+            parent_id = columns.String()
+            child_id = columns.String()
+            is_parent = columns.Boolean()
+            level = columns.Integer()
+
+
         class Category(clearskies.Model):
             """
             Category model with hierarchical structure.
@@ -48,27 +64,18 @@ def example_hierarchical_data() -> str:
             backend = clearskies.backends.MemoryBackend()
 
             id = columns.Uuid()
-            name = columns.String(max_length=255, validators=[Required()])
+            name = columns.String(validators=[Required()])
             description = columns.String()
-            slug = columns.String(max_length=255)
+            slug = columns.String()
 
-            # Self-referencing foreign key for parent
-            parent_id = columns.BelongsToSelf()
+            # Self-referencing parent id that also keeps the tree table up to date
+            parent_id = columns.CategoryTree(CategoryTreeEntry)
 
-            # Tree navigation columns
-            parent = columns.BelongsToModel(
-                parent_model_class="Category",
-                parent_id_column_name="parent_id",
-            )
-            ancestors = columns.CategoryTreeAncestors(
-                parent_id_column_name="parent_id",
-            )
-            children = columns.CategoryTreeChildren(
-                parent_id_column_name="parent_id",
-            )
-            descendants = columns.CategoryTreeDescendants(
-                parent_id_column_name="parent_id",
-            )
+            # Tree navigation columns (all point at the CategoryTree column)
+            parent = columns.BelongsToModel("parent_id")
+            ancestors = columns.CategoryTreeAncestors("parent_id")
+            children = columns.CategoryTreeChildren("parent_id")
+            descendants = columns.CategoryTreeDescendants("parent_id")
 
             # Auto-generate slug from name
             def pre_save(self, data):
@@ -81,9 +88,7 @@ def example_hierarchical_data() -> str:
         # USAGE EXAMPLES
         # =============================================================================
 
-        def main():
-            # Get a model instance for querying
-            categories = Category()
+        def main(categories: Category):
 
             # Create root categories
             electronics = categories.create({
@@ -136,13 +141,13 @@ def example_hierarchical_data() -> str:
             print_tree(electronics)
 
             print("\\n=== Ancestors of Gaming Laptops ===")
-            # Get all ancestors (parent chain to root)
+            # Get all ancestors (from the root down to the immediate parent)
             for ancestor in gaming_laptops.ancestors:
                 print(f"  - {ancestor.name}")
             # Output:
-            #   - Laptops
-            #   - Computers
             #   - Electronics
+            #   - Computers
+            #   - Laptops
 
             print("\\n=== Children of Electronics ===")
             # Get immediate children only
@@ -186,15 +191,16 @@ def example_hierarchical_data() -> str:
 
         def build_breadcrumbs(category):
             """Build breadcrumb path from root to category."""
-            # Ancestors are returned from immediate parent to root
-            # Reverse to get root-to-current order
-            path = [ancestor.name for ancestor in reversed(list(category.ancestors))]
+            # Ancestors are returned from the root down to the immediate parent
+            path = [ancestor.name for ancestor in category.ancestors]
             path.append(category.name)
             return path
 
 
+        cli = clearskies.contexts.Cli(main, classes=[Category, CategoryTreeEntry])
+
         if __name__ == "__main__":
-            main()
+            cli()
         ```
 
         ## REST API for Categories
@@ -226,7 +232,8 @@ def example_hierarchical_data() -> str:
                 searchable_column_names=["name", "description"],
                 sortable_column_names=["name"],
                 default_sort_column_name="name",
-            )
+            ),
+            classes=[Category, CategoryTreeEntry],
         )
 
         if __name__ == "__main__":

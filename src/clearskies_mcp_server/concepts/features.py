@@ -155,6 +155,11 @@ FEATURES_CONCEPTS = {
         # SecretBearer reads from environment
         endpoint = clearskies.endpoints.RestfulApi(
             model_class=User,
+            readable_column_names=["id", "name", "email"],
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
             authentication=clearskies.authentication.SecretBearer(
                 environment_key="API_SECRET",  # Reads from API_SECRET env var
             ),
@@ -375,6 +380,8 @@ FEATURES_CONCEPTS = {
                 ),
                 readable_column_names=["id", "name"],
                 writeable_column_names=["name"],
+                searchable_column_names=["name"],
+                sortable_column_names=["name"],
                 default_sort_column_name="name",
             ),
             bindings={"config": config},

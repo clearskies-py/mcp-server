@@ -15,37 +15,35 @@ def example_error_handling() -> str:
         ```python
         import clearskies
         from clearskies import columns
-        from clearskies import Validator
-        from clearskies.validators import Required, Unique
+        from clearskies import configs
+        from clearskies.validators import MinimumLength, Required, Unique
         import logging
 
         logger = logging.getLogger(__name__)
 
-        # Custom validator with specific error message
-        class PositiveNumber(Validator):
-            def __init__(self, message=None):
+        # Custom validator: subclass clearskies.Validator and implement check().
+        # check() returns an error message, or an empty string when the value is valid.
+        class PositiveNumber(clearskies.Validator):
+            message = configs.String(default="")
+
+            def __init__(self, message: str = ""):
                 self.message = message
+                self.finalize_and_validate_configuration()
 
-            def validate(self, value, column, model):
-                if value is not None and value <= 0:
-                    return self.message or f"{column.name} must be a positive number"
-                return None
-
-        class MinLength(Validator):
-            def __init__(self, min_length: int):
-                self.min_length = min_length
-
-            def validate(self, value, column, model):
-                if value and len(value) < self.min_length:
-                    return f"Must be at least {self.min_length} characters"
-                return None
+            def check(self, model, column_name: str, data: dict) -> str:
+                # Leave missing values to the Required validator
+                if data.get(column_name) is None:
+                    return ""
+                if data[column_name] > 0:
+                    return ""
+                return self.message or f"'{column_name}' must be a positive number."
 
         class Product(clearskies.Model):
             id_column_name = "id"
             backend = clearskies.backends.MemoryBackend()
 
             id = columns.Uuid()
-            name = columns.String(validators=[Required(), MinLength(3)])
+            name = columns.String(validators=[Required(), MinimumLength(3)])
             sku = columns.String(validators=[Required(), Unique()])
             price = columns.Float(validators=[Required(), PositiveNumber("Price must be greater than zero")])
             stock = columns.Integer(validators=[PositiveNumber()])
@@ -238,7 +236,7 @@ def example_error_handling() -> str:
             "data": [],
             "pagination": {},
             "input_errors": {
-                "name": "Must be at least 3 characters",
+                "name": "'name' must be at least 3 characters long.",
                 "sku": "Sku is required",
                 "price": "Price is required"
             }

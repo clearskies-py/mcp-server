@@ -102,6 +102,9 @@ endpoint = clearskies.endpoints.RestfulApi(  # lowercase 'i'
     model_class=User,
     readable_column_names=["id", "name", "email"],
     writeable_column_names=["name", "email"],
+    searchable_column_names=["name", "email"],
+    sortable_column_names=["name"],
+    default_sort_column_name="name",
 )
 ```
 
@@ -109,7 +112,8 @@ endpoint = clearskies.endpoints.RestfulApi(  # lowercase 'i'
 - `handlers` → `endpoints` (package renamed)
 - `RestfulAPI` → `RestfulApi` (lowercase 'i')
 - `handler_config` dict → direct kwargs
-- Explicit `readable_column_names` and `writeable_column_names` required
+- Explicit `readable_column_names`, `writeable_column_names`, `searchable_column_names`,
+  `sortable_column_names` and `default_sort_column_name` are all required
 
 ### 3. Application → Context
 
@@ -484,8 +488,8 @@ def columns_configuration(self):
 **v2:**
 ```python
 id = columns.Uuid()
-user_id = columns.BelongsTo(parent_class=User)
-posts = columns.HasMany(child_class=Post)
+user_id = columns.BelongsToId(User)
+posts = columns.HasMany(Post)
 ```
 
 ### 3. Model with Hooks
@@ -550,6 +554,7 @@ endpoint = clearskies.endpoints.RestfulApi(
     writeable_column_names=["name", "email"],
     sortable_column_names=["name", "created_at"],
     searchable_column_names=["name", "email"],
+    default_sort_column_name="name",
 )
 
 wsgi = clearskies.contexts.WsgiRef(
@@ -619,6 +624,11 @@ endpoint = clearskies.endpoints.RestfulApi(
     authentication=clearskies.authentication.SecretBearer(
         environment_key="API_SECRET"
     ),
+    readable_column_names=["id", "name", "email"],
+    writeable_column_names=["name", "email"],
+    searchable_column_names=["name", "email"],
+    sortable_column_names=["name"],
+    default_sort_column_name="name",
 )
 ```
 
@@ -704,8 +714,24 @@ app = Application(
 group = clearskies.EndpointGroup(
     url="/api",
     endpoints=[
-        clearskies.endpoints.RestfulApi(url="users", model_class=User),
-        clearskies.endpoints.RestfulApi(url="posts", model_class=Post),
+        clearskies.endpoints.RestfulApi(
+            url="users",
+            model_class=User,
+            readable_column_names=["id", "name", "email"],
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
+        ),
+        clearskies.endpoints.RestfulApi(
+            url="posts",
+            model_class=Post,
+            readable_column_names=["id", "title", "content"],
+            writeable_column_names=["title", "content"],
+            searchable_column_names=["title"],
+            sortable_column_names=["title"],
+            default_sort_column_name="title",
+        ),
     ],
 )
 ```

@@ -953,6 +953,10 @@ INTERNALS_CONCEPTS = {
         endpoint = clearskies.endpoints.RestfulApi(
             model_class=User,
             writeable_column_names=["name", "email"],
+            readable_column_names=["id", "name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
         )
 
         # Callables can validate via writeable_column_names/input_schema,
@@ -1010,6 +1014,11 @@ INTERNALS_CONCEPTS = {
         endpoint = clearskies.endpoints.RestfulApi(
             url="users",
             model_class=User,
+            readable_column_names=["id", "name", "email"],
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
         )
 
         # Accessible at: /users
@@ -1022,6 +1031,11 @@ INTERNALS_CONCEPTS = {
             clearskies.endpoints.RestfulApi(
                 url="api/v1/users",
                 model_class=User,
+                readable_column_names=["id", "name", "email"],
+                writeable_column_names=["name", "email"],
+                searchable_column_names=["name", "email"],
+                sortable_column_names=["name"],
+                default_sort_column_name="name",
             )
         )
 
@@ -1038,6 +1052,11 @@ INTERNALS_CONCEPTS = {
         endpoint = clearskies.endpoints.RestfulApi(
             url="users",
             model_class=User,
+            readable_column_names=["id", "name", "email"],
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
         )
 
         # Automatically creates routes:
@@ -1091,12 +1110,22 @@ INTERNALS_CONCEPTS = {
         users_endpoint = clearskies.endpoints.RestfulApi(
             url="users",
             model_class=User,
+            readable_column_names=["id", "name", "email"],
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
         )
 
         # Orders endpoint (nested under users)
         orders_endpoint = clearskies.endpoints.RestfulApi(
             url="users/{user_id}/orders",
             model_class=Order,
+            readable_column_names=["id", "user_id", "total", "status"],
+            writeable_column_names=["user_id", "total", "status"],
+            searchable_column_names=["user_id", "status"],
+            sortable_column_names=["total"],
+            default_sort_column_name="total",
         )
 
         # Routes created:
@@ -1226,10 +1255,20 @@ INTERNALS_CONCEPTS = {
                 clearskies.endpoints.RestfulApi(
                     url="users",
                     model_class=User,
+                    readable_column_names=["id", "name"],
+                    writeable_column_names=["name"],
+                    searchable_column_names=["name"],
+                    sortable_column_names=["name"],
+                    default_sort_column_name="name",
                 ),
                 clearskies.endpoints.RestfulApi(
                     url="orders",
                     model_class=Order,
+                    readable_column_names=["id", "user_id"],
+                    writeable_column_names=["user_id"],
+                    searchable_column_names=["user_id"],
+                    sortable_column_names=["user_id"],
+                    default_sort_column_name="user_id",
                 ),
             ],
         )
@@ -1252,8 +1291,24 @@ INTERNALS_CONCEPTS = {
                 environment_key="API_SECRET",
             ),
             endpoints=[
-                clearskies.endpoints.RestfulApi(url="users", model_class=User),
-                clearskies.endpoints.RestfulApi(url="orders", model_class=Order),
+                clearskies.endpoints.RestfulApi(
+                    url="users",
+                    model_class=User,
+                    readable_column_names=["id", "name", "email"],
+                    writeable_column_names=["name", "email"],
+                    searchable_column_names=["name", "email"],
+                    sortable_column_names=["name"],
+                    default_sort_column_name="name",
+                ),
+                clearskies.endpoints.RestfulApi(
+                    url="orders",
+                    model_class=Order,
+                    readable_column_names=["id", "user_id", "total", "status"],
+                    writeable_column_names=["user_id", "total", "status"],
+                    searchable_column_names=["user_id", "status"],
+                    sortable_column_names=["total"],
+                    default_sort_column_name="total",
+                ),
             ],
         )
 
@@ -1269,7 +1324,15 @@ INTERNALS_CONCEPTS = {
             url="api/v1",
             endpoints=[
                 # RESTful API endpoints
-                clearskies.endpoints.RestfulApi(url="users", model_class=User),
+                clearskies.endpoints.RestfulApi(
+                    url="users",
+                    model_class=User,
+                    readable_column_names=["id", "name", "email"],
+                    writeable_column_names=["name", "email"],
+                    searchable_column_names=["name", "email"],
+                    sortable_column_names=["name"],
+                    default_sort_column_name="name",
+                ),
 
                 # Custom callable endpoint
                 clearskies.endpoints.Callable(
@@ -1295,7 +1358,15 @@ INTERNALS_CONCEPTS = {
         v1_api = clearskies.EndpointGroup(
             url="api/v1",
             endpoints=[
-                clearskies.endpoints.RestfulApi(url="users", model_class=User),
+                clearskies.endpoints.RestfulApi(
+                    url="users",
+                    model_class=User,
+                    readable_column_names=["id", "name", "email"],
+                    writeable_column_names=["name", "email"],
+                    searchable_column_names=["name", "email"],
+                    sortable_column_names=["name"],
+                    default_sort_column_name="name",
+                ),
             ],
         )
 
@@ -1303,7 +1374,15 @@ INTERNALS_CONCEPTS = {
         v2_api = clearskies.EndpointGroup(
             url="api/v2",
             endpoints=[
-                clearskies.endpoints.RestfulApi(url="users", model_class=UserV2),
+                clearskies.endpoints.RestfulApi(
+                    url="users",
+                    model_class=UserV2,
+                    readable_column_names=["id", "name", "email"],
+                    writeable_column_names=["name", "email"],
+                    searchable_column_names=["name", "email"],
+                    sortable_column_names=["name"],
+                    default_sort_column_name="name",
+                ),
             ],
         )
 
@@ -1326,7 +1405,15 @@ INTERNALS_CONCEPTS = {
             ),
             endpoints=[
                 # Uses group authentication
-                clearskies.endpoints.RestfulApi(url="orders", model_class=Order),
+                clearskies.endpoints.RestfulApi(
+                    url="orders",
+                    model_class=Order,
+                    readable_column_names=["id", "user_id", "total", "status"],
+                    writeable_column_names=["user_id", "total", "status"],
+                    searchable_column_names=["user_id", "status"],
+                    sortable_column_names=["total"],
+                    default_sort_column_name="total",
+                ),
 
                 # Public endpoint - overrides group auth
                 clearskies.endpoints.Callable(
@@ -1375,8 +1462,24 @@ INTERNALS_CONCEPTS = {
                 environment_key="ADMIN_SECRET",
             ),
             endpoints=[
-                clearskies.endpoints.RestfulApi(url="users", model_class=User),
-                clearskies.endpoints.RestfulApi(url="settings", model_class=Settings),
+                clearskies.endpoints.RestfulApi(
+                    url="users",
+                    model_class=User,
+                    readable_column_names=["id", "name", "email"],
+                    writeable_column_names=["name", "email"],
+                    searchable_column_names=["name", "email"],
+                    sortable_column_names=["name"],
+                    default_sort_column_name="name",
+                ),
+                clearskies.endpoints.RestfulApi(
+                    url="settings",
+                    model_class=Settings,
+                    readable_column_names=["id", "key", "value"],
+                    writeable_column_names=["key", "value"],
+                    searchable_column_names=["key"],
+                    sortable_column_names=["key"],
+                    default_sort_column_name="key",
+                ),
             ],
         )
 
@@ -1384,7 +1487,13 @@ INTERNALS_CONCEPTS = {
             url="public",
             authentication=clearskies.authentication.Public(),
             endpoints=[
-                clearskies.endpoints.List(url="products", model_class=Product),
+                clearskies.endpoints.List(
+                    url="products",
+                    model_class=Product,
+                    readable_column_names=["id", "name", "price"],
+                    sortable_column_names=["name", "price"],
+                    default_sort_column_name="name",
+                ),
             ],
         )
         ```
@@ -1442,6 +1551,9 @@ INTERNALS_CONCEPTS = {
                     model_class=User,
                     readable_column_names=["id", "name", "email"],
                     writeable_column_names=["name", "email"],
+                    searchable_column_names=["name", "email"],
+                    sortable_column_names=["name"],
+                    default_sort_column_name="name",
                 ),
 
                 # Order management
@@ -1450,6 +1562,9 @@ INTERNALS_CONCEPTS = {
                     model_class=Order,
                     readable_column_names=["id", "user_id", "total"],
                     writeable_column_names=["user_id", "total"],
+                    searchable_column_names=["user_id"],
+                    sortable_column_names=["total"],
+                    default_sort_column_name="total",
                 ),
 
                 # Public product catalog
@@ -1457,6 +1572,8 @@ INTERNALS_CONCEPTS = {
                     url="products",
                     model_class=Product,
                     readable_column_names=["id", "name", "price"],
+                    sortable_column_names=["name", "price"],
+                    default_sort_column_name="name",
                     authentication=clearskies.authentication.Public(),
                 ),
 

@@ -23,7 +23,7 @@ def example_audit_trail() -> str:
         Audit trail example with clearskies Audit column.
 
         This script demonstrates:
-        - Setting up audit tracking on specific columns
+        - Setting up audit tracking with an audit model
         - Accessing audit history
         - Querying audit records
         - Building audit reports
@@ -38,17 +38,34 @@ def example_audit_trail() -> str:
         # MODEL DEFINITIONS
         # =============================================================================
 
-        class Document(clearskies.Model):
+        class AuditRecord(clearskies.Model):
             """
-            Document model with audit trail tracking.
+            Audit model shared by all audited models.
 
-            Tracks changes to title, content, and status fields.
+            The Audit column requires exactly these column names.
             """
             id_column_name = "id"
             backend = clearskies.backends.MemoryBackend()
 
             id = columns.Uuid()
-            title = columns.String(max_length=255, validators=[Required()])
+            class_name = columns.String()
+            resource_id = columns.String()
+            action = columns.String()  # create, update, or delete
+            data = columns.Json()  # changed values ({"from": ..., "to": ...} for updates)
+            created_at = columns.Created(date_format="%Y-%m-%d %H:%M:%S.%f")
+
+
+        class Document(clearskies.Model):
+            """
+            Document model with audit trail tracking.
+
+            Every create/update/delete is recorded in AuditRecord.
+            """
+            id_column_name = "id"
+            backend = clearskies.backends.MemoryBackend()
+
+            id = columns.Uuid()
+            title = columns.String(validators=[Required()])
             content = columns.String()
             status = columns.Select(
                 ["draft", "review", "approved", "published", "archived"],
@@ -58,9 +75,10 @@ def example_audit_trail() -> str:
             created_at = columns.Created()
             updated_at = columns.Updated()
 
-            # Audit trail - tracks changes to specified columns
+            # Audit trail - don't record changes to auto-updated timestamps
             audit = columns.Audit(
-                audit_columns=["title", "content", "status"],
+                audit_model_class=AuditRecord,
+                exclude_columns=["created_at", "updated_at"],
             )
 
 
@@ -74,8 +92,8 @@ def example_audit_trail() -> str:
             backend = clearskies.backends.MemoryBackend()
 
             id = columns.Uuid()
-            contract_number = columns.String(max_length=50, validators=[Required()])
-            client_name = columns.String(max_length=255, validators=[Required()])
+            contract_number = columns.String(validators=[Required()])
+            client_name = columns.String(validators=[Required()])
             amount = columns.Float()
             status = columns.Select(
                 ["draft", "pending_approval", "approved", "signed", "expired", "terminated"],
@@ -87,16 +105,11 @@ def example_audit_trail() -> str:
             created_at = columns.Created()
             updated_at = columns.Updated()
 
-            # Track changes to all business-critical fields
+            # Record every business-critical change, but hide the terms text in the audit log
             audit = columns.Audit(
-                audit_columns=[
-                    "client_name",
-                    "amount",
-                    "status",
-                    "effective_date",
-                    "expiration_date",
-                    "terms",
-                ],
+                audit_model_class=AuditRecord,
+                exclude_columns=["created_at", "updated_at"],
+                mask_columns=["terms"],
             )
 
 
@@ -104,9 +117,7 @@ def example_audit_trail() -> str:
         # USAGE EXAMPLES
         # =============================================================================
 
-        def main():
-            documents = Document()
-
+        def main(documents: Document):
             # Create a document
             doc = documents.create({
                 "title": "Project Proposal",
@@ -126,10 +137,9 @@ def example_audit_trail() -> str:
             # =================================================================
 
             print("\\n=== Audit History ===")
-            for audit_record in doc.audit:
-                print(f"  Changed: {audit_record.column_name}")
-                print(f"    From: {audit_record.old_value}")
-                print(f"    To: {audit_record.new_value}")
+            for audit_record in doc.audit.sort_by("created_at", "asc"):
+                print(f"  Action: {audit_record.action}")
+                print(f"    Data: {audit_record.data}")
                 print(f"    At: {audit_record.created_at}")
                 print()
 
@@ -138,14 +148,9 @@ def example_audit_trail() -> str:
             # =================================================================
 
             print("\\n=== Status Change History ===")
-            status_changes = [a for a in doc.audit if a.column_name == "status"]
-            for change in status_changes:
-                print(f"  {change.old_value} -> {change.new_value} at {change.created_at}")
-
-            print("\\n=== Title Revision History ===")
-            title_changes = [a for a in doc.audit if a.column_name == "title"]
-            for i, change in enumerate(title_changes, 1):
-                print(f"  v{i}: {change.new_value}")
+            for change in doc.audit.where("action=update").sort_by("created_at", "asc"):
+                if "status" in change.data.get("to", {}):
+                    print(f"  {change.data['from'].get('status')} -> {change.data['to']['status']} at {change.created_at}")
 
 
         def compliance_report(contract):
@@ -156,21 +161,23 @@ def example_audit_trail() -> str:
             print(f"Amount: ${contract.amount:,.2f}")
 
             print("\\nChange History:")
-            for audit_record in contract.audit:
-                print(f"  [{audit_record.created_at}] {audit_record.column_name}:")
-                print(f"    Changed from \'{audit_record.old_value}\' to \'{audit_record.new_value}\'")
+            for audit_record in contract.audit.sort_by("created_at", "asc"):
+                print(f"  [{audit_record.created_at}] {audit_record.action}: {audit_record.data}")
 
             # Count changes by field
             print("\\nChange Summary:")
             field_counts = {}
-            for audit_record in contract.audit:
-                field_counts[audit_record.column_name] = field_counts.get(audit_record.column_name, 0) + 1
+            for audit_record in contract.audit.where("action=update"):
+                for field in audit_record.data.get("to", {}):
+                    field_counts[field] = field_counts.get(field, 0) + 1
             for field, count in sorted(field_counts.items()):
                 print(f"  {field}: {count} change(s)")
 
 
+        cli = clearskies.contexts.Cli(main, classes=[Document, Contract, AuditRecord])
+
         if __name__ == "__main__":
-            main()
+            cli()
         ```
 
         ## REST API with Audit Trail
@@ -186,14 +193,13 @@ def example_audit_trail() -> str:
             """Get audit history for a specific document."""
             doc = documents.find(f"id={document_id}")
             if not doc:
-                return {"error": "Document not found"}, 404
+                raise clearskies.exceptions.NotFound("Document not found")
 
             audit_history = []
-            for audit_record in doc.audit:
+            for audit_record in doc.audit.sort_by("created_at", "asc"):
                 audit_history.append({
-                    "column": audit_record.column_name,
-                    "old_value": audit_record.old_value,
-                    "new_value": audit_record.new_value,
+                    "action": audit_record.action,
+                    "data": audit_record.data,
                     "changed_at": str(audit_record.created_at),
                 })
 
@@ -204,22 +210,24 @@ def example_audit_trail() -> str:
 
         # Endpoint group with CRUD and audit endpoint
         endpoints = clearskies.EndpointGroup(
-            endpoints=[
+            [
                 clearskies.endpoints.RestfulApi(
                     url="documents",
                     model_class=Document,
                     readable_column_names=["id", "title", "content", "status", "created_at", "updated_at"],
                     writeable_column_names=["title", "content", "status"],
+                    searchable_column_names=["title", "content", "status"],
+                    sortable_column_names=["created_at"],
                     default_sort_column_name="created_at",
                 ),
                 clearskies.endpoints.Callable(
+                    get_document_audit,
                     url="documents/:document_id/audit",
-                    to_call=get_document_audit,
                 ),
             ],
         )
 
-        wsgi = clearskies.contexts.WsgiRef(endpoints)
+        wsgi = clearskies.contexts.WsgiRef(endpoints, classes=[Document, AuditRecord])
 
         if __name__ == "__main__":
             wsgi()
@@ -239,16 +247,14 @@ def example_audit_trail() -> str:
           "document_id": "doc-uuid-here",
           "audit_history": [
             {
-              "column": "title",
-              "old_value": "Project Proposal",
-              "new_value": "Project Proposal v2",
-              "changed_at": "2024-01-15 10:30:00"
+              "action": "update",
+              "data": {"from": {"title": "Project Proposal"}, "to": {"title": "Project Proposal v2"}},
+              "changed_at": "2024-01-15 10:30:00.000000"
             },
             {
-              "column": "status",
-              "old_value": "draft",
-              "new_value": "review",
-              "changed_at": "2024-01-15 11:00:00"
+              "action": "update",
+              "data": {"from": {"status": "draft"}, "to": {"status": "review"}},
+              "changed_at": "2024-01-15 11:00:00.000000"
             }
           ]
         }
@@ -269,13 +275,12 @@ def example_audit_trail() -> str:
         class Document(clearskies.Model):
             # ... columns ...
 
-            # Track who made changes
-            last_modified_by = columns.CreatedByAuthorizationData(
-                authorization_data_key="user_id",
-            )
+            # Record who created the record (read from the authorization data)
+            created_by = columns.CreatedByAuthorizationData("user_id")
 
             audit = columns.Audit(
-                audit_columns=["title", "content", "status", "last_modified_by"],
+                audit_model_class=AuditRecord,
+                exclude_columns=["created_at", "updated_at"],
             )
         ```
     ''')

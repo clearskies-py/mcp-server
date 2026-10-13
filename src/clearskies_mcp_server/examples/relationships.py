@@ -31,13 +31,21 @@ def example_relationships() -> str:
             category = columns.BelongsToModel("category_id")
             created_at = columns.Created()
 
+        class OrderProduct(clearskies.Model):
+            id_column_name = "id"
+            backend = clearskies.backends.MemoryBackend()
+
+            id = columns.Uuid()
+            order_id = columns.String()
+            product_id = columns.String()
+
         class Order(clearskies.Model):
             id_column_name = "id"
             backend = clearskies.backends.MemoryBackend()
 
             id = columns.Uuid()
             customer_name = columns.String(validators=[Required()])
-            product_ids = columns.ManyToManyIds(Product, pivot_table_name="order_products")
+            product_ids = columns.ManyToManyIds(Product, OrderProduct)
             products = columns.ManyToManyModels("product_ids")
             created_at = columns.Created()
         ```

@@ -54,6 +54,8 @@ def example_authorization() -> str:
                 ),
                 readable_column_names=["id", "name", "data", "created_at"],
                 writeable_column_names=["name", "data"],
+                searchable_column_names=["name"],
+                sortable_column_names=["name"],
                 default_sort_column_name="name",
             ),
             classes=[TenantResource],
@@ -129,7 +131,10 @@ def example_authorization() -> str:
                             jwks_url="https://auth.example.com/.well-known/jwks.json",
                         ),
                         readable_column_names=["id", "title", "content", "classification", "created_at"],
-                        writeable_column_names=[],  # Read-only via REST
+                        writeable_column_names=[],
+                        read_only=True,  # Read-only via REST
+                        searchable_column_names=["title", "classification"],
+                        sortable_column_names=["title"],
                         default_sort_column_name="title",
                     ),
                     clearskies.endpoints.Callable(

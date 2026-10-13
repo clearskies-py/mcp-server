@@ -84,6 +84,8 @@ execute = clearskies_aws.contexts.LambdaAlb(
         model_class=User,
         readable_column_names=["id", "name"],
         writeable_column_names=["name"],
+        searchable_column_names=["name"],
+        sortable_column_names=["name"],
         default_sort_column_name="name",
     ),
     classes=[User],

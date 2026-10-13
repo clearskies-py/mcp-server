@@ -128,30 +128,37 @@ DATA_CONCEPTS = {
 
         ### CategoryTree
 
-        The base column for hierarchical relationships:
+        `CategoryTree` replaces a self-referencing `BelongsToId`. It maintains a separate
+        tree model (`parent_id`, `child_id`, `is_parent`, `level`) so relatives can be
+        looked up quickly. The navigation columns reference the CategoryTree column by name:
 
         ```python
         import clearskies
         from clearskies import columns
+
+        class CategoryTree(clearskies.Model):
+            id_column_name = "id"
+            backend = clearskies.backends.CursorBackend()
+
+            id = columns.Uuid()
+            parent_id = columns.String()
+            child_id = columns.String()
+            is_parent = columns.Boolean()
+            level = columns.Integer()
 
         class Category(clearskies.Model):
             id_column_name = "id"
             backend = clearskies.backends.CursorBackend()
 
             id = columns.Uuid()
-            name = columns.String(max_length=255)
-            parent_id = columns.BelongsToId(parent_model_class="Category")
+            name = columns.String(validators=[clearskies.validators.MaximumLength(255)])
+            parent_id = columns.CategoryTree(CategoryTree)
+            parent = columns.BelongsToModel("parent_id")
 
             # Tree navigation columns
-            ancestors = columns.CategoryTreeAncestors(
-                parent_id_column_name="parent_id",
-            )
-            children = columns.CategoryTreeChildren(
-                parent_id_column_name="parent_id",
-            )
-            descendants = columns.CategoryTreeDescendants(
-                parent_id_column_name="parent_id",
-            )
+            ancestors = columns.CategoryTreeAncestors("parent_id")
+            children = columns.CategoryTreeChildren("parent_id")
+            descendants = columns.CategoryTreeDescendants("parent_id")
         ```
 
         ### CategoryTreeAncestors
@@ -186,24 +193,37 @@ DATA_CONCEPTS = {
 
         ## Audit Trail
 
-        The Audit column automatically tracks changes to records:
+        The Audit column records every create/update/delete in an audit model:
 
         ```python
         import clearskies
         from clearskies import columns
+
+        class DocumentHistory(clearskies.Model):
+            id_column_name = "id"
+            backend = clearskies.backends.CursorBackend()
+
+            id = columns.Uuid()
+            class_name = columns.String()
+            resource_id = columns.String()
+            action = columns.String()
+            data = columns.Json()
+            created_at = columns.Created()
 
         class Document(clearskies.Model):
             id_column_name = "id"
             backend = clearskies.backends.CursorBackend()
 
             id = columns.Uuid()
-            title = columns.String(max_length=255)
+            title = columns.String(validators=[clearskies.validators.MaximumLength(255)])
             content = columns.String()
             status = columns.Select(["draft", "published", "archived"])
+            updated_at = columns.Updated()
 
             # Audit trail - tracks all changes
             audit = columns.Audit(
-                audit_columns=["title", "content", "status"],
+                audit_model_class=DocumentHistory,
+                exclude_columns=["updated_at"],
             )
         ```
 
@@ -211,18 +231,19 @@ DATA_CONCEPTS = {
 
         | Parameter | Type | Description |
         |-----------|------|-------------|
-        | `audit_columns` | list | Column names to track changes for |
-        | `audit_model_class` | class | Custom audit record model (optional) |
+        | `audit_model_class` | class | Audit record model (required). Must have `class_name`, `resource_id`, `action`, `data`, `created_at` columns |
+        | `exclude_columns` | list | Column names not recorded |
+        | `mask_columns` | list | Column names recorded with a masked value |
+        | `readable_child_column_names` | list | Audit columns returned in API output |
 
         ### Accessing Audit History
 
         ```python
         document = documents.find("id=some-uuid")
-        for audit_record in document.audit:
-            print(f"Changed at: {audit_record.created_at}")
-            print(f"Changed by: {audit_record.changed_by}")
-            print(f"Old value: {audit_record.old_value}")
-            print(f"New value: {audit_record.new_value}")
+        for audit_record in document.audit.sort_by("created_at", "asc"):
+            print(f"{audit_record.action} at {audit_record.created_at}")
+            # create: data is the record; update: {"from": {...}, "to": {...}}
+            print(audit_record.data)
         ```
 
         ## Many-to-Many with Pivot Data
@@ -243,36 +264,44 @@ DATA_CONCEPTS = {
             backend = clearskies.backends.CursorBackend()
 
             id = columns.Uuid()
-            name = columns.String(max_length=255)
+            name = columns.String()
             price = columns.Float()
+
+        class OrderProduct(clearskies.Model):
+            id_column_name = "id"
+            backend = clearskies.backends.CursorBackend()
+
+            id = columns.Uuid()
+            order_id = columns.String()
+            product_id = columns.String()
+            quantity = columns.Integer()
+            unit_price = columns.Float()
 
         class Order(clearskies.Model):
             id_column_name = "id"
             backend = clearskies.backends.CursorBackend()
 
             id = columns.Uuid()
-            customer_name = columns.String(max_length=255)
+            customer_name = columns.String()
 
-            # Many-to-many with quantity data
+            # Many-to-many with quantity data stored in the pivot model
             product_ids_with_data = columns.ManyToManyIdsWithData(
                 related_model_class=Product,
-                pivot_table="order_products",
-                pivot_data_columns=["quantity", "unit_price"],
+                pivot_model_class=OrderProduct,
+                readable_pivot_column_names=["product_id", "quantity", "unit_price"],
             )
         ```
 
         ### ManyToManyPivots
 
-        Access the pivot records directly:
+        Access the pivot records directly via the many-to-many column:
 
         ```python
         class Order(clearskies.Model):
             # ... other columns ...
 
             # Access pivot records
-            order_products = columns.ManyToManyPivots(
-                pivot_model_class=OrderProduct,
-            )
+            order_products = columns.ManyToManyPivots("product_ids_with_data")
         ```
 
         ### Working with Pivot Data
@@ -282,14 +311,14 @@ DATA_CONCEPTS = {
         order = orders.create({
             "customer_name": "John Doe",
             "product_ids_with_data": [
-                {"id": product1.id, "quantity": 2, "unit_price": 29.99},
-                {"id": product2.id, "quantity": 1, "unit_price": 49.99},
+                {"product_id": product1.id, "quantity": 2, "unit_price": 29.99},
+                {"product_id": product2.id, "quantity": 1, "unit_price": 49.99},
             ],
         })
 
         # Reading pivot data
-        for item in order.product_ids_with_data:
-            print(f"Product: {item['id']}, Qty: {item['quantity']}")
+        for pivot in order.order_products:
+            print(f"Product: {pivot.product_id}, Qty: {pivot.quantity}")
         ```
 
         ## Best Practices
@@ -297,7 +326,7 @@ DATA_CONCEPTS = {
         1. **Use CategoryTree for true hierarchies** – Not for simple parent-child
         2. **Audit only important columns** – Don't audit auto-updated timestamps
         3. **Define pivot models explicitly** – For complex pivot data
-        4. **Index foreign keys** – Especially for tree traversal queries
+        4. **Index foreign keys in your database** – Especially for tree traversal queries
         5. **Consider query performance** – Deep trees can be expensive to traverse
     """),
     "advanced_queries": textwrap.dedent("""\
@@ -433,11 +462,12 @@ DATA_CONCEPTS = {
 
         ### 1. Use Indexes
 
-        Ensure columns used in WHERE clauses are indexed:
+        Ensure columns used in WHERE clauses are indexed. Indexes are defined in your
+        database schema (clearskies columns have no index option):
 
-        ```python
-        email = columns.Email(max_length=255, index=True)
-        status = columns.Select(["active", "inactive"], index=True)
+        ```sql
+        CREATE INDEX idx_users_email ON users (email);
+        CREATE INDEX idx_users_status ON users (status);
         ```
 
         ### 2. Limit Selected Columns

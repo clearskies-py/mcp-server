@@ -128,7 +128,7 @@ def explain_v1_v2_difference(concept: str) -> str:
 
 **v2 Pattern:**
 - Columns are class attributes
-- Direct instantiation with `columns.Type()`
+- Direct instantiation with `columns.<Type>()` (e.g. `columns.String()`)
 - Backend specified as class attribute
 - Import from `clearskies.columns`
 
@@ -201,6 +201,9 @@ endpoint = clearskies.endpoints.RestfulApi(
     model_class=User,
     readable_column_names=["id", "name", "email"],
     writeable_column_names=["name", "email"],
+    searchable_column_names=["name", "email"],
+    sortable_column_names=["name"],
+    default_sort_column_name="name",
 )
 
 wsgi = clearskies.contexts.WsgiRef(endpoint)
@@ -210,7 +213,7 @@ wsgi = clearskies.contexts.WsgiRef(endpoint)
 - `handlers` → `endpoints` (renamed package)
 - `RestfulAPI` → `RestfulApi` (lowercase 'i')
 - `handler_config` dict → kwargs
-- Must specify readable/writeable columns explicitly
+- Must specify readable/writeable/searchable/sortable columns and the default sort column explicitly
 """,
         "di": """# Dependency Injection Changes (v1 → v2)
 

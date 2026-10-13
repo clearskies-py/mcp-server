@@ -32,6 +32,8 @@ AUTH_CONCEPTS = {
                 ),
                 readable_column_names=["id", "name"],
                 writeable_column_names=["name"],
+                searchable_column_names=["name"],
+                sortable_column_names=["name"],
                 default_sort_column_name="name",
             )
         )
@@ -53,6 +55,8 @@ AUTH_CONCEPTS = {
                 ),
                 readable_column_names=["id", "name"],
                 writeable_column_names=["name"],
+                searchable_column_names=["name"],
+                sortable_column_names=["name"],
                 default_sort_column_name="name",
             )
         )

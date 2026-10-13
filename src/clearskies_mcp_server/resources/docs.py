@@ -48,6 +48,8 @@ def docs_overview() -> str:
                 model_class=User,
                 readable_column_names=["id", "name", "email"],
                 writeable_column_names=["name", "email"],
+                searchable_column_names=["name", "email"],
+                sortable_column_names=["name"],
                 default_sort_column_name="name",
             )
         )

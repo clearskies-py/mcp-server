@@ -190,6 +190,8 @@ def example_endpoint_group() -> str:
                         model_class=SecureData,
                         readable_column_names=["id", "data"],
                         writeable_column_names=["data"],
+                        searchable_column_names=["data"],
+                        sortable_column_names=["id"],
                         default_sort_column_name="id",
                     ),
                 ],

@@ -229,8 +229,8 @@ BACKEND_CONCEPTS = {
             backend = clearskies.backends.CursorBackend()
 
             id = columns.Uuid()
-            name = columns.String(max_length=255)
-            email = columns.Email(max_length=255)
+            name = columns.String()
+            email = columns.Email()
             created_at = columns.Created()
             updated_at = columns.Updated()
         ```
@@ -268,8 +268,13 @@ BACKEND_CONCEPTS = {
         # Register with context
         wsgi = clearskies.contexts.WsgiRef(
             clearskies.endpoints.RestfulApi(
+                url="users",
                 model_class=User,
-                # ...
+                readable_column_names=["id", "name", "email"],
+                writeable_column_names=["name", "email"],
+                searchable_column_names=["name", "email"],
+                sortable_column_names=["name"],
+                default_sort_column_name="name",
             ),
             bindings={
                 "cursor": connection.cursor(),

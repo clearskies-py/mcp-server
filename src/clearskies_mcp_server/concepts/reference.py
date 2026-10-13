@@ -11,79 +11,85 @@ REFERENCE_CONCEPTS = {
     "column_reference": textwrap.dedent("""\
         # Column Parameter Reference
 
-        Complete reference for all clearskies column types and their parameters.
+        Reference for clearskies v2 column types and their constructor parameters.
 
-        ## Common Parameters (All Columns)
+        ## Common Parameters (Most Columns)
 
         | Parameter | Type | Default | Description |
         |-----------|------|---------|-------------|
-        | `validators` | list | `[]` | List of validator instances |
+        | `default` | any | `None` | Value used on create when none is provided |
+        | `setable` | value/callable | `None` | Value always set on save (overrides user input) |
         | `is_readable` | bool | `True` | Include in API responses |
         | `is_writeable` | bool | `True` | Allow setting via API |
-        | `is_searchable` | bool | `False` | Allow searching by this column |
-        | `is_sortable` | bool | `False` | Allow sorting by this column |
-        | `is_required` | bool | `False` | Require value on create |
-        | `default` | any | `None` | Default value if not provided |
+        | `is_searchable` | bool | `True` | Allow searching by this column |
+        | `is_temporary` | bool | `False` | Accept/use the value but never persist it |
+        | `validators` | validator/list | `[]` | Validator instances |
+        | `on_change_pre_save` / `on_change_post_save` / `on_change_save_finished` | action/list | `[]` | Actions run when the value changes |
+        | `created_by_source_type` / `created_by_source_key` | str | `""` | Populate from request data (e.g. authorization data) on create |
+
+        There are no `is_required`, `is_sortable`, `max_length`, `min_value`, etc. column
+        arguments in v2. Use validators instead:
+
+        ```python
+        name = columns.String(validators=[
+            clearskies.validators.Required(),
+            clearskies.validators.MinimumLength(2),
+            clearskies.validators.MaximumLength(255),
+        ])
+        age = columns.Integer(validators=[
+            clearskies.validators.MinimumValue(0),
+            clearskies.validators.MaximumValue(150),
+        ])
+        ```
+
+        Available validators: `Required`, `Unique`, `MinimumLength`, `MaximumLength`,
+        `MinimumValue`, `MaximumValue`, `Regexp`, `AfterColumn`, `BeforeColumn`,
+        `InTheFuture`, `InThePast` (plus `AtLeast`/`AtMost` variants), `Timedelta`.
 
         ## String Columns
 
         ### String
 
         ```python
-        columns.String(
-            max_length=255,        # Maximum string length
-            min_length=0,          # Minimum string length
-            validators=[],         # Additional validators
-        )
+        columns.String(validators=[clearskies.validators.MaximumLength(255)])
         ```
 
         ### Email
 
+        Email format is validated automatically:
+
         ```python
-        columns.Email(
-            max_length=255,        # Maximum length
-            validators=[],         # Additional validators (email format auto-validated)
-        )
+        columns.Email(validators=[clearskies.validators.Unique()])
         ```
 
         ### Phone
 
+        Phone format is validated automatically; non-digits are stripped:
+
         ```python
         columns.Phone(
-            max_length=50,         # Maximum length
-            validators=[],         # Phone format auto-validated
+            usa_only=True,         # Only accept US numbers (default True)
         )
         ```
 
         ## Numeric Columns
 
-        ### Integer
+        ### Integer / Float
+
+        Value limits are validators:
 
         ```python
-        columns.Integer(
-            min_value=None,        # Minimum allowed value
-            max_value=None,        # Maximum allowed value
-            validators=[],
-        )
-        ```
-
-        ### Float
-
-        ```python
-        columns.Float(
-            min_value=None,        # Minimum allowed value
-            max_value=None,        # Maximum allowed value
-            precision=None,        # Decimal precision
-            validators=[],
-        )
+        columns.Integer(validators=[clearskies.validators.MinimumValue(0)])
+        columns.Float(validators=[clearskies.validators.MaximumValue(100.0)])
         ```
 
         ## Boolean Column
 
         ```python
         columns.Boolean(
-            default=False,         # Default value
-            validators=[],
+            default=False,
+            on_true=[],            # Actions when the value changes to True
+            on_false=[],           # Actions when the value changes to False
         )
         ```
 
@@ -93,8 +99,10 @@ REFERENCE_CONCEPTS = {
 
         ```python
         columns.Datetime(
-            format="%Y-%m-%d %H:%M:%S",  # Date format
-            validators=[],
+            date_format="%Y-%m-%d %H:%M:%S",    # Format used by the backend
+            backend_default="0000-00-00 00:00:00",
+            timezone_aware=True,
+            timezone=datetime.timezone.utc,
         )
         ```
 
@@ -102,47 +110,38 @@ REFERENCE_CONCEPTS = {
 
         ```python
         columns.Date(
-            format="%Y-%m-%d",     # Date format
-            validators=[],
+            date_format="%Y-%m-%d",
+            backend_default="0000-00-00",
         )
         ```
 
         ### Timestamp
 
+        Unix timestamp in the backend, datetime in Python:
+
         ```python
         columns.Timestamp(
-            # Unix timestamp (automatically converted to/from datetime)
+            include_microseconds=False,
         )
         ```
 
-        ### Created
+        ### Created / Updated
 
-        Auto-set to current UTC time on create:
-
-        ```python
-        columns.Created(
-            # No parameters - automatically set on create
-        )
-        ```
-
-        ### Updated
-
-        Auto-set to current UTC time on every save:
+        Auto-set on create / on every save (not writeable):
 
         ```python
-        columns.Updated(
-            # No parameters - automatically set on save
-        )
+        columns.Created(date_format="%Y-%m-%d %H:%M:%S", in_utc=True)
+        columns.Updated(date_format="%Y-%m-%d %H:%M:%S", in_utc=True)
         ```
 
         ## ID Columns
 
         ### Uuid
 
+        Auto-generates a UUID on create:
+
         ```python
-        columns.Uuid(
-            # Auto-generates UUID on create
-        )
+        columns.Uuid()
         ```
 
         ### Integer (for auto-increment)
@@ -162,34 +161,35 @@ REFERENCE_CONCEPTS = {
 
         ```python
         columns.Select(
-            values=["option1", "option2", "option3"],  # Allowed values
-            validators=[],
+            allowed_values=["option1", "option2", "option3"],  # Required
+            default="option1",
         )
         ```
 
         ## Relationship Columns
 
+        Use `clearskies.model.ModelClassReference` subclasses when model classes would
+        otherwise cause circular imports.
+
         ### BelongsToId
 
-        Foreign key to parent model:
+        Foreign key to a parent model (the column name should end in `_id`):
 
         ```python
-        columns.BelongsToId(
-            parent_model_class=User,       # Parent model class or string
-            parent_column_name="id",       # Parent's ID column
-            readable_name="user_id",       # API field name
+        user_id = columns.BelongsToId(
+            User,                              # parent_model_class (or a ModelClassReference)
+            readable_parent_columns=["id", "name"],  # Parent columns returned in API output
+            join_type=None,                    # "LEFT" or "INNER" for joins
+            where=[],                          # Conditions restricting allowed parents
         )
         ```
 
         ### BelongsToModel
 
-        Access parent model instance:
+        Access the parent model instance via an existing BelongsToId column:
 
         ```python
-        columns.BelongsToModel(
-            parent_model_class=User,       # Parent model class or string
-            readable_name="user",          # API field name
-        )
+        user = columns.BelongsToModel("user_id")   # belongs_to_column_name
         ```
 
         ### HasMany
@@ -197,79 +197,59 @@ REFERENCE_CONCEPTS = {
         One-to-many relationship:
 
         ```python
-        columns.HasMany(
-            related_model_class=Order,     # Related model class or string
-            foreign_key_column_name="user_id",  # FK column in related model
-            readable_name="orders",        # API field name
+        orders = columns.HasMany(
+            Order,                             # child_model_class
+            foreign_column_name="user_id",     # FK in child (default: <own model>_id)
+            readable_child_column_names=["id", "total"],
+            where=[],
         )
         ```
 
         ### HasOne
 
-        One-to-one relationship:
+        One-to-one relationship (same parameters as HasMany):
 
         ```python
-        columns.HasOne(
-            related_model_class=Profile,   # Related model class or string
-            foreign_key_column_name="user_id",  # FK column in related model
-            readable_name="profile",       # API field name
+        profile = columns.HasOne(
+            Profile,                           # child_model_class
+            foreign_column_name="user_id",
+            readable_child_column_names=["id", "bio"],
         )
         ```
 
         ### ManyToManyIds
 
-        Many-to-many relationship returning IDs:
+        Many-to-many relationship via a pivot model, returning related IDs:
 
         ```python
-        columns.ManyToManyIds(
+        tag_ids = columns.ManyToManyIds(
             related_model_class=Tag,
-            pivot_table="article_tags",    # Pivot table name
-            local_key="article_id",        # Local FK in pivot
-            foreign_key="tag_id",          # Foreign FK in pivot
-            readable_name="tag_ids",
+            pivot_model_class=ArticleTag,
+            own_column_name_in_pivot="article_id",   # Default derived from model name
+            related_column_name_in_pivot="tag_id",   # Default derived from model name
+            readable_related_column_names=["id", "name"],
         )
         ```
 
-        ### ManyToManyModels
+        ### ManyToManyModels / ManyToManyPivots
 
-        Many-to-many relationship returning model instances:
-
-        ```python
-        columns.ManyToManyModels(
-            related_model_class=Tag,
-            pivot_table="article_tags",    # Pivot table name
-            local_key="article_id",        # Local FK in pivot
-            foreign_key="tag_id",          # Foreign FK in pivot
-            readable_name="tags",
-        )
-        ```
-
-        ### ManyToManyPivots
-
-        Many-to-many relationship with full pivot table access:
+        Access the related models or the pivot records via an existing many-to-many column:
 
         ```python
-        columns.ManyToManyPivots(
-            related_model_class=Tag,
-            pivot_table="article_tags",    # Pivot table name
-            local_key="article_id",        # Local FK in pivot
-            foreign_key="tag_id",          # Foreign FK in pivot
-            readable_name="article_tags",
-        )
+        tags = columns.ManyToManyModels("tag_ids")          # many_to_many_column_name
+        article_tags = columns.ManyToManyPivots("tag_ids")  # many_to_many_column_name
         ```
 
         ### ManyToManyIdsWithData
 
-        Many-to-many relationship with pivot data:
+        Many-to-many relationship with extra data stored in the pivot model:
 
         ```python
-        columns.ManyToManyIdsWithData(
+        product_ids = columns.ManyToManyIdsWithData(
             related_model_class=Product,
-            pivot_table="order_products",
-            local_key="order_id",
-            foreign_key="product_id",
-            pivot_columns=["quantity", "price"],  # Extra pivot columns
-            readable_name="products",
+            pivot_model_class=OrderProduct,          # Pivot has quantity/price columns
+            readable_pivot_column_names=["id", "product_id", "quantity", "price"],
+            setable_column_names=["product_id", "quantity", "price"],
         )
         ```
 
@@ -278,52 +258,47 @@ REFERENCE_CONCEPTS = {
         ### Json
 
         ```python
-        columns.Json(
-            schema=None,           # Optional JSON schema for validation
-            validators=[],
-        )
+        columns.Json(default={})
         ```
 
         ## Special Columns
 
         ### Audit
 
-        Track changes to model:
+        Records create/update/delete actions in an audit model (which must have
+        `class_name`, `resource_id`, `action`, `data`, and `created_at` columns):
 
         ```python
-        columns.Audit(
-            tracked_columns=["name", "email", "status"],  # Columns to track
+        history = columns.Audit(
+            audit_model_class=PersonHistory,
+            exclude_columns=["updated_at"],    # Columns not recorded
+            mask_columns=["password"],         # Recorded but masked
         )
         ```
 
         ### CategoryTree
 
-        Hierarchical data (parent reference):
+        Replacement for a self-referencing BelongsToId that maintains a tree model
+        (with `parent_id`, `child_id`, `is_parent`, `level` columns) for fast lookups:
 
         ```python
-        columns.CategoryTree(
-            parent_column_name="parent_id",  # Column storing parent ID
+        parent_id = columns.CategoryTree(
+            CategoryTreeModel,                 # tree_model_class
+            tree_parent_id_column_name="parent_id",
+            tree_child_id_column_name="child_id",
+            tree_is_parent_column_name="is_parent",
+            tree_level_column_name="level",
         )
         ```
 
-        ### CategoryTreeAncestors
+        ### CategoryTreeChildren / CategoryTreeAncestors / CategoryTreeDescendants
 
-        Get all ancestors:
-
-        ```python
-        columns.CategoryTreeAncestors(
-            parent_column_name="parent_id",
-        )
-        ```
-
-        ### CategoryTreeDescendants
-
-        Get all descendants:
+        Read relatives via an existing CategoryTree column:
 
         ```python
-        columns.CategoryTreeDescendants(
-            parent_column_name="parent_id",
-        )
+        children = columns.CategoryTreeChildren("parent_id")        # category_tree_column_name
+        ancestors = columns.CategoryTreeAncestors("parent_id")
+        descendants = columns.CategoryTreeDescendants("parent_id")
         ```
     """),
     "endpoint_reference": textwrap.dedent("""\
@@ -347,16 +322,16 @@ REFERENCE_CONCEPTS = {
         clearskies.endpoints.RestfulApi(
             model_class=User,                    # Required: Model class
             url="users",                         # URL path
-            readable_column_names=["id", "name", "email"],  # Columns in responses
-            writeable_column_names=["name", "email"],       # Columns client can set
-            searchable_column_names=["name", "email"],      # Columns for search
-            sortable_column_names=["name", "created_at"],   # Columns for sorting
-            default_sort_column_name="name",     # Default sort column
-            default_sort_direction="asc",        # "asc" or "desc"
+            readable_column_names=["id", "name", "email"],  # Required: columns in responses
+            writeable_column_names=["name", "email"],       # Required: columns client can set
+            searchable_column_names=["name", "email"],      # Required: columns for search
+            sortable_column_names=["name", "created_at"],   # Required: columns for sorting
+            default_sort_column_name="name",     # Required: default sort column
+            default_sort_direction="ASC",        # "ASC" or "DESC"
             default_limit=20,                    # Default page size
             maximum_limit=100,                   # Maximum page size
             id_column_name="id",                 # ID column for routes
-            authentication=None,                 # Authentication handler
+            authentication=clearskies.authentication.Public(),  # Authentication handler
         )
         ```
 
@@ -486,10 +461,26 @@ REFERENCE_CONCEPTS = {
         clearskies.EndpointGroup(
             url="api/v1",                        # Base URL for group
             endpoints=[
-                clearskies.endpoints.RestfulApi(url="users", model_class=User),
-                clearskies.endpoints.RestfulApi(url="orders", model_class=Order),
+                clearskies.endpoints.RestfulApi(
+                    url="users",
+                    model_class=User,
+                    readable_column_names=["id", "name", "email"],
+                    writeable_column_names=["name", "email"],
+                    searchable_column_names=["name", "email"],
+                    sortable_column_names=["name"],
+                    default_sort_column_name="name",
+                ),
+                clearskies.endpoints.RestfulApi(
+                    url="orders",
+                    model_class=Order,
+                    readable_column_names=["id", "user_id", "total", "status"],
+                    writeable_column_names=["user_id", "total", "status"],
+                    searchable_column_names=["user_id", "status"],
+                    sortable_column_names=["total"],
+                    default_sort_column_name="total",
+                ),
             ],
-            authentication=None,                 # Shared authentication
+            authentication=clearskies.authentication.Public(),  # Shared authentication
         )
         ```
 
@@ -607,13 +598,21 @@ REFERENCE_CONCEPTS = {
         # ✅ Only return needed columns
         endpoint = clearskies.endpoints.RestfulApi(
             model_class=User,
-            readable_column_names=["id", "name", "email"],  # Minimal
+            readable_column_names=["id", "name", "email"],  # Minimal,
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
         )
 
         # ❌ Don't return everything
         endpoint = clearskies.endpoints.RestfulApi(
             model_class=User,
             readable_column_names=["id", "name", "email", "bio", "avatar", ...],
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
         )
         ```
 
@@ -895,7 +894,7 @@ REFERENCE_CONCEPTS = {
 
             id = columns.Uuid()
             status = columns.Select(
-                values=[
+                allowed_values=[
                     OrderStatus.PENDING,
                     OrderStatus.PROCESSING,
                     OrderStatus.SHIPPED,

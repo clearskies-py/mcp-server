@@ -120,19 +120,24 @@ DEVEX_CONCEPTS = {
         # models/user.py
         from models.order import Order
         class User(clearskies.Model):
-            orders = columns.HasMany(related_model_class=Order)
+            orders = columns.HasMany(Order)
 
         # models/order.py
         from models.user import User  # Circular!
         class Order(clearskies.Model):
             user_id = columns.BelongsToId(parent_model_class=User)
 
-        # ✅ Use string references
-        class User(clearskies.Model):
-            orders = columns.HasMany(related_model_class="Order")
+        # ✅ Use model class references (import inside the method)
+        # models/order_reference.py
+        class OrderReference(clearskies.model.ModelClassReference):
+            def get_model_class(self):
+                from models.order import Order
+                return Order
 
-        class Order(clearskies.Model):
-            user_id = columns.BelongsToId(parent_model_class="User")
+        # models/user.py
+        from models.order_reference import OrderReference
+        class User(clearskies.Model):
+            orders = columns.HasMany(OrderReference)
         ```
 
         ### 6. Authentication Not Working
@@ -149,6 +154,11 @@ DEVEX_CONCEPTS = {
         # ✅ Configure authentication
         endpoint = clearskies.endpoints.RestfulApi(
             model_class=User,
+            readable_column_names=["id", "name", "email"],
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
             authentication=clearskies.authentication.SecretBearer(
                 environment_key="API_SECRET",
             ),
@@ -302,8 +312,8 @@ DEVEX_CONCEPTS = {
             backend = clearskies.backends.CursorBackend()
 
             id = columns.Uuid()
-            name = columns.String(max_length=255)
-            email = columns.Email(max_length=255)
+            name = columns.String()
+            email = columns.Email()
             created_at = columns.Created()
             updated_at = columns.Updated()
 
@@ -331,11 +341,11 @@ DEVEX_CONCEPTS = {
         ```python
         class Order(clearskies.Model):
             # ✅ Clear relationship definitions
-            user_id = columns.BelongsToId(parent_model_class=User)
-            user = columns.BelongsToModel(parent_model_class=User)
+            user_id = columns.BelongsToId(User)
+            user = columns.BelongsToModel("user_id")
 
-            # ✅ Use string references to avoid circular imports
-            items = columns.HasMany(related_model_class="OrderItem")
+            # ✅ Use a ModelClassReference to avoid circular imports
+            items = columns.HasMany(OrderItemReference)
         ```
 
         ## Endpoint Design
@@ -349,6 +359,7 @@ DEVEX_CONCEPTS = {
             readable_column_names=["id", "name", "email"],
             writeable_column_names=["name", "email"],
             searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
             default_sort_column_name="name",
         )
 
@@ -366,6 +377,9 @@ DEVEX_CONCEPTS = {
             model_class=User,
             readable_column_names=["id", "name", "email"],  # No password!
             writeable_column_names=["name", "email"],       # No id!
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
         )
         ```
 
@@ -376,8 +390,24 @@ DEVEX_CONCEPTS = {
         api = clearskies.EndpointGroup(
             url="api/v1",
             endpoints=[
-                clearskies.endpoints.RestfulApi(url="users", model_class=User),
-                clearskies.endpoints.RestfulApi(url="orders", model_class=Order),
+                clearskies.endpoints.RestfulApi(
+                    url="users",
+                    model_class=User,
+                    readable_column_names=["id", "name", "email"],
+                    writeable_column_names=["name", "email"],
+                    searchable_column_names=["name", "email"],
+                    sortable_column_names=["name"],
+                    default_sort_column_name="name",
+                ),
+                clearskies.endpoints.RestfulApi(
+                    url="orders",
+                    model_class=Order,
+                    readable_column_names=["id", "user_id", "total", "status"],
+                    writeable_column_names=["user_id", "status"],
+                    searchable_column_names=["user_id", "status"],
+                    sortable_column_names=["total"],
+                    default_sort_column_name="total",
+                ),
             ],
             authentication=clearskies.authentication.SecretBearer(...),
         )
@@ -508,6 +538,11 @@ DEVEX_CONCEPTS = {
         # ✅ Always authenticate API endpoints
         endpoint = clearskies.endpoints.RestfulApi(
             model_class=User,
+            readable_column_names=["id", "name", "email"],
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
             authentication=clearskies.authentication.SecretBearer(
                 environment_key="API_SECRET",
             ),
@@ -521,6 +556,10 @@ DEVEX_CONCEPTS = {
         endpoint = clearskies.endpoints.RestfulApi(
             model_class=User,
             readable_column_names=["id", "name", "email"],  # No password_hash!
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
         )
         ```
 
@@ -690,6 +729,11 @@ DEVEX_CONCEPTS = {
         ```python
         endpoint = clearskies.endpoints.RestfulApi(
             model_class=User,
+            readable_column_names=["id", "name", "email"],
+            writeable_column_names=["name", "email"],
+            searchable_column_names=["name", "email"],
+            sortable_column_names=["name"],
+            default_sort_column_name="name",
             authentication=clearskies.authentication.SecretBearer(
                 environment_key="API_SECRET",
             ),
@@ -744,6 +788,11 @@ DEVEX_CONCEPTS = {
 
         endpoint = clearskies.endpoints.RestfulApi(
             model_class=Order,
+            readable_column_names=["id", "user_id", "total", "status"],
+            writeable_column_names=["status"],
+            searchable_column_names=["user_id", "status"],
+            sortable_column_names=["total"],
+            default_sort_column_name="total",
             authentication=MyAuthentication(),
         )
         ```
@@ -896,6 +945,14 @@ DEVEX_CONCEPTS = {
 
         # 2. Define model with authorization
         class Order(clearskies.Model):
+            id_column_name = "id"
+            backend = clearskies.backends.CursorBackend()
+
+            id = clearskies.columns.Uuid()
+            user_id = clearskies.columns.String()
+            total = clearskies.columns.Float()
+            status = clearskies.columns.String()
+
             def where_for_request(self, model, input_output, routing_data, authorization_data, overrides={}):
                 # Filter by tenant and user
                 tenant_id = authorization_data.get("tenant_id")
@@ -917,6 +974,9 @@ DEVEX_CONCEPTS = {
             authentication=auth,
             readable_column_names=["id", "total", "status"],
             writeable_column_names=["status"],
+            searchable_column_names=["status"],
+            sortable_column_names=["total"],
+            default_sort_column_name="total",
         )
         ```
 

@@ -117,8 +117,8 @@ def example_configuration() -> str:
             backend = clearskies.backends.CursorBackend()
 
             id = columns.Uuid()
-            email = columns.Email(max_length=255, validators=[Required()])
-            name = columns.String(max_length=255, validators=[Required()])
+            email = columns.Email(validators=[Required()])
+            name = columns.String(validators=[Required()])
             created_at = columns.Created()
 
 
@@ -174,6 +174,8 @@ def example_configuration() -> str:
                 ),
                 readable_column_names=["id", "email", "name", "created_at"],
                 writeable_column_names=["email", "name"],
+                searchable_column_names=["email", "name"],
+                sortable_column_names=["created_at"],
                 default_sort_column_name="created_at",
             )
 
